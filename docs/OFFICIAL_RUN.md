@@ -1,5 +1,21 @@
 # Official run procedure
 
+**v3 gate:** use a clean committed harness. Legacy logs and event labels cannot
+establish official results. Completed baseline/pilot directories need valid seals,
+current protocol/corpus/configuration bindings, consistent pairs and real execution
+provenance. The CLI checks the actual pilot directory and the exact completed
+baseline file. Read [protocol v3](RESEARCH_PROTOCOL_V3.md) before interpretation.
+
+Provider ledgers persist at `results/budgets/<config-hash>.json` (under the web
+service's result root for web calls). Reservations are written before requests.
+Transport failure, missing usage, process termination or excessive provider charge
+blocks subsequent requests until operator reconciliation. With all writers stopped,
+preserve the old ledger, reconcile the request against provider billing, then
+deliberately update recorded spend/pending state. A stale `.lock` may be removed
+only after confirming no writer remains. Never delete ledgers to evade a budget.
+Each configuration has a separate ledger; a provider account-wide cap is still
+mandatory. No paid call was made during this hardening task.
+
 The repository contains no official measurements. Development uses mocks and authored fixtures. An official run is a separate operator action requiring paid-provider credentials and a curated corpus. The harness does not bypass provider or Codeforces access restrictions.
 
 1. Install Node >=22 and a Linux Docker daemon. Build the image with `docker build -t ai-falsifier-python:local sandbox`. Pin the base image digest for reproducibility (`--build-arg PYTHON_IMAGE=python@sha256:...`). Run the opt-in Docker tests and save the tested image ID; official evidence must match the image returned by `docker image inspect`. No host fallback exists.
@@ -16,6 +32,9 @@ Evidence structure (combine actual generated records, never fill with fabricated
 
 ```json
 {
+  "protocol_version": "3.0.0",
+  "protocol_id": "current value returned by protocolBinding()",
+  "evidence_schema": 3,
   "compatibility": {"config_id": "sha256:...", "model": "verified-snapshot", "nonempty": true, "longPrompt": true},
   "quality": {"corpus_id": "sha256:...", "problems": ["actual audit records"]},
   "baseline": {"sha": "sha256:...", "completed": true, "log_digest": "sha256:...", "directory": "results/random"},

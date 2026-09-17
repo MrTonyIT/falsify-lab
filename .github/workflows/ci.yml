@@ -1,7 +1,7 @@
 name: CI
 on:
   push:
-    branches: [main]
+    branches: [main, research-hardening-v3]
   pull_request:
   workflow_dispatch:
 permissions:
@@ -20,5 +20,16 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
+      - run: npm run check
       - run: npm test
       - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Browser and language checks (serial shared-server execution)
+        run: |
+          node server/index.js > /tmp/falsify-web.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:4173/api/health; then break; fi
+            sleep 1
+          done
+          npm run test:e2e
+          npm run test:languages

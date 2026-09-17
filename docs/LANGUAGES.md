@@ -1,5 +1,11 @@
 # Interface languages and source runtimes
 
+v3 retains the same 12 locales and 11 source-language adapters. Translation coverage
+is partial and has not received certified human review. Missing keys fall back to
+English. Runtime availability is distinct from real integration validation, which
+remains NOT RUN on this machine. Compile failure is not KILL; ambiguous runtime
+failure is INCONCLUSIVE. Custom oracles now require reviewed corpus provenance.
+
 ## Dùng trên giao diện
 
 - Đổi ngôn ngữ bằng bộ chọn góc trên bên phải. Lựa chọn được nhớ trong trình duyệt; không đổi nội dung đề bài, code, đầu vào/đầu ra hay ngắt lượt chạy đang hoạt động.

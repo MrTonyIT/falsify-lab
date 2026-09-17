@@ -1,5 +1,22 @@
 # Falsify Lab web integration
 
+## v3 behavior
+
+Custom pasted references are unverified and cannot authorize paid evaluation.
+Use the bundled explicitly synthetic oracle or a reviewed corpus oracle. Ambiguous
+runtime exits are inconclusive. Official labels require compatible sealed evidence;
+legacy histories remain separately labeled. VERIFIED describes artifact integrity,
+not scientific certification. Web histories have checksums and allowlisted fields.
+The API rejects primitive JSON, serializes start-slot claims, limits SSE clients,
+checks event cursors/fetch-site headers and rejects asset symlink escapes.
+
+Playground, results, pipeline, run list, benchmark/analytics, system, suites, shared
+components and API calls now have separate modules. Analysis runs in a worker;
+dashboard responses omit generator sources and cap browsing at 100 directories
+with an explicit truncation notice. Full CLI reports remain available. Monaco and
+charts are lazy loaded; Monaco remains a large optional bundle. Its vendored old
+DOMPurify is redirected to the pinned patched module with a build-time guard.
+
 Repository inspection: existing engine is Node ESM, with Python programs executed in a Docker sandbox. There is no Python backend package to preserve or wrap in FastAPI. The product reuses `runPair`, `Evaluator`, `HttpLLM`, `DockerSandbox`, JSONL, metrics and Track 2 readers directly through a local Node HTTP API. React/TypeScript/Vite provides the browser UI; engine logic is not duplicated in TypeScript.
 
 Optional event observers were added to the existing loop/evaluator. Defaults are no-ops; the benchmark remains unchanged. Custom playground prompts say correctness is unknown. Expected/actual outputs may be displayed to the local operator, but are never inserted into LLM feedback.

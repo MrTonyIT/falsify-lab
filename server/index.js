@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { readFile, stat } from "node:fs/promises";
+import { readFile, stat, realpath } from "node:fs/promises";
 import { resolve, join, extname, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { LabService, ApiError, examples } from "./service.js";
@@ -58,7 +58,10 @@ export async function createLabServer(options = {}) {
           "This application is available on localhost only.",
         );
       const url = new URL(req.url, "http://" + host);
-      if (req.headers.origin && req.headers.origin !== "http://" + host)
+      if (
+        req.headers["sec-fetch-site"] === "cross-site" ||
+        (req.headers.origin && req.headers.origin !== "http://" + host)
+      )
         throw new ApiError(
           403,
           "CROSS_ORIGIN",
@@ -100,6 +103,21 @@ export async function createLabServer(options = {}) {
         if (req.method === "GET" && run) {
           const job = service.get(run[1]);
           if (!run[2]) return json(job);
+          const after = Number(
+            req.headers["last-event-id"] ?? url.searchParams.get("after") ?? 0,
+          );
+          if (!Number.isSafeInteger(after) || after < 0)
+            throw new ApiError(
+              400,
+              "INVALID_CURSOR",
+              "Event cursor must be a nonnegative integer.",
+            );
+          if ((service.listeners.get(job.id)?.size ?? 0) >= 8)
+            throw new ApiError(
+              429,
+              "TOO_MANY_STREAMS",
+              "Too many event streams.",
+            );
           res.writeHead(200, {
             "Content-Type": "text/event-stream",
             "Cache-Control": "no-cache, no-transform",
@@ -110,18 +128,25 @@ export async function createLabServer(options = {}) {
           let cursor = Number(
             req.headers["last-event-id"] ?? url.searchParams.get("after") ?? 0,
           );
+          let blocked = false;
           const send = (e) => {
-            if (e.id > cursor) {
-              res.write(`id: ${e.id}\ndata: ${JSON.stringify(e)}\n\n`);
+            if (!blocked && !res.destroyed && e.id > cursor) {
               cursor = e.id;
+              blocked = !res.write(
+                `id: ${e.id}\ndata: ${JSON.stringify(e)}\n\n`,
+              );
+              if (blocked)
+                res.once("drain", () => {
+                  blocked = false;
+                  job.events.forEach(send);
+                });
             }
           };
           const unsubscribe = service.subscribe(job.id, send);
           job.events.forEach(send);
-          const heartbeat = setInterval(
-            () => res.write(": keep-alive\n\n"),
-            15000,
-          );
+          const heartbeat = setInterval(() => {
+            if (!blocked) res.write(": keep-alive\n\n");
+          }, 15000);
           res.on("close", () => {
             clearInterval(heartbeat);
             unsubscribe();
@@ -145,7 +170,11 @@ export async function createLabServer(options = {}) {
       } catch {
         path = join(base, "index.html");
       }
-      const content = await readFile(path);
+      const actualBase = await realpath(base),
+        actualPath = await realpath(path);
+      if (relative(actualBase, actualPath).startsWith(".."))
+        throw new ApiError(403, "FORBIDDEN", "Invalid asset path.");
+      const content = await readFile(actualPath);
       res.writeHead(200, {
         "Content-Type": mime[extname(path)] ?? "application/octet-stream",
         "Cache-Control":

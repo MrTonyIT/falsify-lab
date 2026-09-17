@@ -9,6 +9,43 @@ import { readJsonl } from "../src/logging.js";
 import { build_falsify_prompt } from "../src/prompt.js";
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
+test("SSE validates cursors and drains large evidence events without dropping them", async () => {
+  const service = new LabService({
+    root: await mkdtemp(join(tmpdir(), "falsify-sse-")),
+  });
+  const { server } = await createLabServer({ service });
+  const id = "lab-12345678-abc",
+    payload = "x".repeat(200000);
+  service.jobs.set(id, {
+    id,
+    events: [
+      { id: 1, type: "large", payload },
+      { id: 2, type: "complete" },
+    ],
+  });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  const url =
+    "http://127.0.0.1:" + server.address().port + "/api/runs/" + id + "/events";
+  try {
+    for (const cursor of ["NaN", "-1", "1.5", "Infinity"])
+      assert.equal((await fetch(url + "?after=" + cursor)).status, 400);
+    const response = await fetch(url, { signal: AbortSignal.timeout(10000) }),
+      reader = response.body.getReader();
+    let wire = "";
+    while (!wire.includes("complete")) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      wire += new TextDecoder().decode(chunk.value);
+    }
+    await reader.cancel();
+    assert(wire.includes(payload));
+    assert(wire.includes("id: 2"));
+  } finally {
+    server.closeAllConnections();
+    await new Promise((r) => server.close(r));
+  }
+});
+
 test("HTTP + SSE call existing core and persist real attempt evidence", async () => {
   const root = await mkdtemp(join(tmpdir(), "falsify-web-"));
   const service = new LabService({ root, demoDelay: 1 });
@@ -140,6 +177,30 @@ test("local API rejects cross-origin POST and malformed JSON", async () => {
         })
       ).status,
       400,
+    );
+    for (const value of ["null", "[]", "1"])
+      assert.equal(
+        (
+          await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: value,
+          })
+        ).status,
+        400,
+      );
+    assert.equal(
+      (
+        await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Sec-Fetch-Site": "cross-site",
+          },
+          body: "{}",
+        })
+      ).status,
+      403,
     );
   } finally {
     server.closeAllConnections();

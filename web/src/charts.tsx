@@ -97,12 +97,12 @@ function ChartCard({
 export default function Charts({ metric, groups, runs }: any) {
   const by = (key) =>
     Object.entries(metric?.breakdowns?.[key] ?? {})
-      .filter(([, v]: any) => v.kill_at_3 != null)
-      .map(([name, v]: any) => ({ name, value: v.kill_at_3 }));
+      .filter(([, v]: any) => v.all_pair_kill_at_3 != null)
+      .map(([name, v]: any) => ({ name, value: v.all_pair_kill_at_3 }));
   const attempts = runs.flatMap((r) => r.attempts ?? []),
     finals = runs.flatMap((r) => r.finals ?? []);
   const comparison = groups
-    .filter((g) => g.kill_at_3 != null)
+    .filter((g) => g.all_pair_kill_at_3 != null)
     .map((g) => ({
       name: g.key.includes("random50")
         ? t("Random @50")
@@ -111,7 +111,9 @@ export default function Charts({ metric, groups, runs }: any) {
           : g.key.includes("|demo|")
             ? t("Demo fixture")
             : t("AI @3"),
-      value: g.key.includes("random50") ? g.kill_at_50 : g.kill_at_3,
+      value: g.key.includes("random50")
+        ? g.all_pair_kill_at_50
+        : g.all_pair_kill_at_3,
     }));
   return (
     <div className="charts-grid">

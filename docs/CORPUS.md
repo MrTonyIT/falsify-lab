@@ -1,5 +1,39 @@
 # Corpus construction
 
+## Required v3 review fields
+
+The abbreviated manifest below illustrates layout only; it cannot be imported
+until real review evidence has been added:
+
+- `pluginReview`: `{status: "reviewed", reviewer, sha256, dependenciesReviewed: true,
+  dependencies: [{path, sha256}]}`. Bind actual plugin/dependency bytes; use an empty
+  list only for a self-contained module. Review the complete dependency closure,
+  including builtins/external resources. Plugins are trusted host code, not uploads.
+  Paths must resolve beneath the private root, including through symlinks. Restart
+  after dependency edits because Node caches ESM dependencies.
+- Each reference needs `sourceHash`, `provenance`, `algorithmFamily`,
+  `independenceRationale`, `review: {status: "reviewed", reviewer, reviewedAt}`, and
+  `sampleVerification: {status: "passed", sourceHash, samplesHash}`. Dates are ISO
+  dates. `qualityAudit` emits sample/source hashes after actual sample execution.
+- Set `oracleReview: {status: "reviewed", reviewer, reviewedAt,
+  independenceRationale, binding}` only after actual review. Compute `binding`
+  using `oracleBinding(problem)` on the loaded problem. This binds reference
+  source, samples, statement, constraints, checker, validator and exact oracle.
+  An attestation is not automatic proof of correctness or independence.
+- Nonofficial `audit` works before oracle review by checking references against
+  public samples, then judging targets against published sample outputs. This
+  bootstrap never authorizes arbitrary counterexample KILLs. After adding reviews,
+  rerun audit to bind the final corpus identity before baselines.
+- Normalized-source duplicate candidates require `duplicateReview` with named
+  reviewer, rationale and `binding: digest(duplicateGroups(submissions))` for
+  official use. The heuristic ignores blank/full-comment lines and trailing spaces;
+  it does not prove semantic equivalence or independence.
+
+Supported profiles: case-sensitive `tokens`, explicit `tokens-yes-no`, and `lines`.
+There is no float/special-judge fallback. Optional reviewed plugins may export
+`exactOracle(data) -> {applicable: true, output: Buffer}` for bounded cases.
+Disagreement fails closed. See [protocol v3](RESEARCH_PROTOCOL_V3.md).
+
 No official corpus has been downloaded or selected. The synthetic sum fixture is authored for tests and is excluded from official runs. The spec does not prescribe 30 named problems, so statements, constraints and validators must be curated against actual selected problems.
 
 1. Choose 10 Div2 A, 10 B, 10 C problems. Record publication date. Reject interactive, print-any, special-checker, floating-output, file-I/O and image-dependent tasks. Replace problems with insufficient qualified Python submissions.

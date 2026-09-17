@@ -1,5 +1,9 @@
 # Specification conformance
 
+**Current checkpoint:** [HARDENING_REPORT.md](HARDENING_REPORT.md) supersedes the
+historical test counts below. [Protocol v3](RESEARCH_PROTOCOL_V3.md) documents
+intentional deviations. DONE means implementation, never runtime/scientific proof.
+
 Status tracks implementation separately from operational evidence. DONE never implies the real benchmark ran. Initial audit: empty workspace, no code or tests to preserve; entire v2 document read. See DECISIONS.md for contradictions.
 
 | Subsystem | Source | Status | Evidence / remaining work |

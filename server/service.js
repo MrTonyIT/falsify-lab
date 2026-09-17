@@ -1,5 +1,6 @@
 import {
   mkdir,
+  stat,
   readdir,
   readFile,
   writeFile,
@@ -12,12 +13,15 @@ import { languages, languageFor } from "../src/languages.js";
 import { runPair } from "../src/falsify.js";
 import { Evaluator } from "../src/evaluator.js";
 import { DockerSandbox, MockSandbox } from "../src/sandbox.js";
-import { HttpLLM, MockLLM, Budget } from "../src/llm.js";
+import { HttpLLM, MockLLM, persistentBudget } from "../src/llm.js";
 import { JsonlLog, readJsonl } from "../src/logging.js";
 import { metadataFor } from "../src/workflow.js";
 import { loadCorpus } from "../src/corpus.js";
-import { analyze } from "../src/metrics.js";
+import { analyzeAsync } from "./analysis.js";
 import { tokenChecker } from "../src/checkers.js";
+import { encodeHistory, decodeHistory } from "./history.js";
+import { assessOracle } from "../src/oracle.js";
+import { sealEvidence, inspectEvidence } from "../src/evidence.js";
 import { assert, sha256, validateConfig } from "../src/domain.js";
 import { smokeProblem } from "../fixtures/sum-problem.js";
 
@@ -85,7 +89,7 @@ export class LabService {
           JSON.parse(await readFile(this.configPath, "utf8")),
         );
         this.sandbox = new DockerSandbox({ image: this.config.sandboxImage });
-        this.budget = new Budget(this.config.costLimitUsd);
+        this.budget = persistentBudget(this.config, this.root);
       } catch {
         this.config = null;
         this.configError =
@@ -101,9 +105,18 @@ export class LabService {
     for (const dir of await readdir(this.root, { withFileTypes: true })) {
       if (!dir.isDirectory()) continue;
       try {
-        const job = JSON.parse(
-          await readFile(join(this.root, dir.name, "web.json"), "utf8"),
+        if (!/^lab-[a-f0-9-]{12}$/.test(dir.name)) continue;
+        if (
+          (await stat(join(this.root, dir.name, "web.json"))).size >
+          4 * 1024 * 1024
+        )
+          throw Error("History too large");
+        const bytes = await readFile(
+          join(this.root, dir.name, "web.json"),
+          "utf8",
         );
+        if (bytes.length > 4 * 1024 * 1024) throw Error("History is too large");
+        const job = decodeHistory(JSON.parse(bytes), dir.name);
         if (job.status === "running" || job.status === "queued") {
           job.status = "error";
           job.error =
@@ -139,6 +152,12 @@ export class LabService {
       multiAvailable = true;
     } catch {}
     return {
+      protocol: "3.0.0",
+      evidence: {
+        dockerValidation: "NOT RUN",
+        providerValidation: "NOT RUN",
+        unseenProblems: "NOT RUN",
+      },
       languages: languages.map((l) => ({
         ...l,
         status: (
@@ -170,7 +189,11 @@ export class LabService {
       activeJob: this.active,
       demo: "available",
       budget: this.budget
-        ? { limit: this.budget.limit, spent: this.budget.spent }
+        ? {
+            limit: this.budget.limit,
+            spent: this.budget.spent,
+            reserved: this.budget.reserved,
+          }
         : null,
     };
   }
@@ -212,7 +235,7 @@ export class LabService {
   }
   async save(job) {
     const path = join(this.root, job.id, "web.json");
-    await writeFile(path + ".tmp", JSON.stringify(job));
+    await writeFile(path + ".tmp", JSON.stringify(encodeHistory(job)));
     await rename(path + ".tmp", path);
   }
   async emit(job, type, data = {}) {
@@ -238,6 +261,18 @@ export class LabService {
     return () => this.listeners.get(id)?.delete(callback);
   }
   async start(payload) {
+    if (this.starting || this.active)
+      throw new ApiError(409, "RUN_ACTIVE", "A run is already active.");
+    this.starting = true;
+    try {
+      return await this.startReserved(payload);
+    } finally {
+      this.starting = false;
+    }
+  }
+  async startReserved(payload) {
+    if (!payload || typeof payload !== "object" || Array.isArray(payload))
+      throw new ApiError(400, "INVALID_PAYLOAD", "A JSON object is required.");
     if (this.active)
       throw new ApiError(
         409,
@@ -338,13 +373,16 @@ export class LabService {
           );
         problem = {
           ...smokeProblem(),
+          oracleKind: "unverified",
+          oracleReview: null,
+          exactOracle: null,
           id: "custom-" + randomUUID().slice(0, 8),
           statement: payload.statement,
           constraints: payload.constraints,
           references: payload.references.map((code, i) => ({
             id: "custom-ref-" + i,
             author: "user-reference-" + i,
-            verdict: "ACCEPTED",
+            verdict: "UNVERIFIED",
             code,
           })),
           validator: async (data) => {
@@ -369,6 +407,12 @@ export class LabService {
         passedTestCount: 0,
       };
     }
+    if (!assessOracle(problem).trusted)
+      throw new ApiError(
+        422,
+        "ORACLE_UNVERIFIED",
+        "Three pasted references are not reviewed evidence. Configure a hash-bound reviewed corpus oracle before live evaluation.",
+      );
     if (payload.mode !== "demo") {
       const status = await this.status();
       if (status.provider.status !== "configured")
@@ -423,7 +467,13 @@ export class LabService {
     await mkdir(join(this.root, id), { recursive: true });
     this.active = id;
     this.jobs.set(id, job);
-    await this.save(job);
+    try {
+      await this.save(job);
+    } catch (e) {
+      this.active = null;
+      this.jobs.delete(id);
+      throw e;
+    }
     setImmediate(() =>
       this.execute(job, problem, target).catch(async () => {
         job.status = "error";
@@ -501,6 +551,7 @@ export class LabService {
               return { stdout: Buffer.from(sum + "\n") };
             })
           : {
+              kind: "docker",
               run: (code, input, options) => {
                 const multi =
                   options.role === "target" &&
@@ -530,6 +581,13 @@ export class LabService {
                 prepareOnly: true,
                 seconds: 1,
               });
+        if (checked.timedOut || checked.mle || checked.overflow) {
+          const error = new Error(
+            "Compilation preflight exceeded sandbox resource limits; no model call was made.",
+          );
+          error.code = "SANDBOX_RESOURCE_LIMIT";
+          throw error;
+        }
         if (
           checked.compileFailed ||
           checked.crashed ||
@@ -582,6 +640,7 @@ export class LabService {
       job.status = "finished";
       job.elapsed_ms = Date.now() - started;
       await log.append("events", { run_id: job.id, event: "run_complete" });
+      await sealEvidence(log.directory);
       await this.emit(job, "job_finished", {
         final: job.final,
         elapsed_ms: job.elapsed_ms,
@@ -590,11 +649,13 @@ export class LabService {
       job.status = "error";
       job.elapsed_ms = Date.now() - started;
       job.error =
-        error.code === "COMPILE_FAILED"
-          ? "Compilation failed. Fix your source code before testing."
-          : job.mode === "demo"
-            ? "The demonstration could not complete. Please start a new run."
-            : "Execution stopped. Check the model configuration, budget and sandbox in System.";
+        error.code === "SANDBOX_RESOURCE_LIMIT"
+          ? error.message
+          : error.code === "COMPILE_FAILED"
+            ? "Compilation failed. Fix your source code before testing."
+            : job.mode === "demo"
+              ? "The demonstration could not complete. Please start a new run."
+              : "Execution stopped. Check the model configuration, budget and sandbox in System.";
       if (error.code === "COMPILE_FAILED")
         job.diagnostics = String(error.diagnostics ?? "").slice(0, 4096);
       await log.append("events", {
@@ -612,45 +673,98 @@ export class LabService {
     }
   }
   async data() {
+    if (this.dataCache && Date.now() - this.dataCache.at < 5000)
+      return this.dataCache.value;
+    if (this.dataPending) return this.dataPending;
+    this.dataPending = this.readData();
+    try {
+      const value = await this.dataPending;
+      this.dataCache = { at: Date.now(), value };
+      return value;
+    } finally {
+      this.dataPending = null;
+    }
+  }
+  async readData() {
     const runs = [],
       suites = [];
-    // Read existing benchmark JSONL and web jobs, without executing any analysis scripts.
-    for (const dir of await readdir(this.root, { withFileTypes: true })) {
-      if (!dir.isDirectory()) continue;
-      const path = join(this.root, dir.name);
-      const [attempts, finals, events, track2] = await Promise.all(
-        ["attempts", "finals", "events", "track2"].map((name) =>
-          readJsonl(join(path, name + ".jsonl")),
-        ),
-      );
-      if (!finals.length && !track2.length) continue;
-      const meta = events.find((e) => e.event === "run_started") ?? {};
-      const official =
-        meta.kind === "official" &&
-        events.some((e) => e.event === "run_complete");
-      runs.push({
-        id: dir.name,
-        kind: meta.kind ?? "development",
-        corpusId: meta.corpus_id,
-        official,
-        attempts,
-        finals,
-        analysis: analyze(finals, attempts, { repetitions: 500 }),
-      });
-      for (const e of track2.filter((e) => e.suite)) {
-        const held = track2.find((h) => h.suite_sha === e.suite.sha);
-        suites.push({
-          runId: dir.name,
+    // Bound interactive work; full CLI reports still use complete JSONL.
+    const directories = (await readdir(this.root, { withFileTypes: true }))
+      .filter((d) => d.isDirectory() && d.name !== "budgets")
+      .sort((a, b) => b.name.localeCompare(a.name));
+    const warnings = [];
+    for (const dir of directories.slice(0, 100)) {
+      try {
+        if (!dir.isDirectory()) continue;
+        const path = join(this.root, dir.name);
+        const [attempts, finals, events, track2] = await Promise.all(
+          ["attempts", "finals", "events", "track2"].map((name) =>
+            readJsonl(join(path, name + ".jsonl")),
+          ),
+        );
+        if (!finals.length && !track2.length) continue;
+        const meta = events.find((e) => e.event === "run_started") ?? {};
+        const evidence = await inspectEvidence(path);
+        const official = evidence.official;
+        runs.push({
+          id: dir.name,
+          kind: meta.kind ?? "development",
+          corpusId: meta.corpus_id,
+          evidenceStatus: evidence.status,
+          baselineSha: meta.baseline_sha,
+          requiredBaselineSha: meta.preflight?.baseline_sha,
           official,
-          problemId: e.suite.problem_id,
-          matrix: e.matrix,
-          selection: e.suite.selection,
-          tests: e.suite.tests,
-          heldOut: held ?? null,
+          attempts: attempts.map(
+            ({ attempt, cost_usd, semantic_size, input_size, verdict }) => ({
+              attempt,
+              cost_usd,
+              semantic_size,
+              input_size,
+              verdict,
+            }),
+          ),
+          finals: finals.map(
+            ({ attempts_used, killed, min_input_size, semantic_size }) => ({
+              attempts_used,
+              killed,
+              min_input_size,
+              semantic_size,
+            }),
+          ),
+          analysis: await analyzeAsync(finals, attempts),
+        });
+        for (const e of track2.filter((e) => e.suite)) {
+          const held = track2.find((h) => h.suite_sha === e.suite.sha);
+          suites.push({
+            runId: dir.name,
+            official,
+            problemId: e.suite.problem_id,
+            matrix: e.matrix,
+            selection: e.suite.selection,
+            evidenceStatus: evidence.status,
+            suiteHash: e.suite.sha,
+            tests: e.suite.tests.map(({ id, input_sha }) => ({
+              id,
+              input_sha,
+            })),
+            heldOut:
+              evidence.status === "VERIFIED" || evidence.status === "DEMO"
+                ? (held ?? null)
+                : null,
+          });
+        }
+      } catch {
+        warnings.push({
+          directory: dir.name,
+          message:
+            "Evidence could not be safely loaded; use the CLI to inspect this artifact.",
         });
       }
     }
     return {
+      browsingLimit: 100,
+      truncated: directories.length > 100,
+      warnings,
       officialStatus: runs.some((r) => r.official) ? "MEASURED" : "NOT RUN",
       runs,
       suites,

@@ -2,6 +2,22 @@
 
 Checkpoint: 2026-09-17. This document describes observed evidence, not a release certification.
 
+**Current v3 checkpoint:** use [HARDENING_REPORT.md](HARDENING_REPORT.md) for the
+final verification record and [RESEARCH_PROTOCOL_V3.md](RESEARCH_PROTOCOL_V3.md)
+for current verdicts, denominators and evidence gates. The earlier 54-test record
+below is retained as historical context, not the current test total.
+
+Completed in v3: reviewed-oracle gates, explicit checker profiles, conservative
+runtime verdicts, protocol/corpus/suite/configuration identities, artifact seals,
+persistent spending reservations, stricter server/history handling, paired cluster
+analysis helper, unseen-problem partition schema, optional post-analysis shrinking,
+frontend module extraction, dependency patch and CI/browser improvements.
+
+Remaining external work: real Docker validation, reviewed real corpus/reference
+provenance, provider/pricing compatibility, human privacy/pilot review and an
+authorized paid official run. Maturity: **not yet experiment/pilot/official ready**;
+the local demo and automated engineering checks are operational.
+
 ## Implemented
 
 - Benchmark engine: generator, validator, three references, target, checker; DEV-only

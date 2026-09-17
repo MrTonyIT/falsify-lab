@@ -7,19 +7,21 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "node --test test/*.test.js",
+    "test": "node --test --test-timeout=60000 test/*.test.js",
     "smoke": "node src/cli.js smoke",
     "report": "node src/cli.js report",
     "build": "tsc -p web/tsconfig.json && vite build web --config web/vite.config.ts",
     "start": "node server/index.js",
     "dev": "vite web --config web/vite.config.ts",
     "test:e2e": "node scripts/web-smoke.mjs",
-    "test:languages": "node scripts/web-languages.mjs"
+    "test:languages": "node scripts/web-languages.mjs",
+    "check": "node scripts/check.mjs"
   },
   "dependencies": {
     "@fontsource/inter": "^5.3.0",
     "@fontsource/jetbrains-mono": "^5.3.0",
     "@monaco-editor/react": "^4.7.0",
+    "dompurify": "3.4.15",
     "lucide-react": "^1.46.0",
     "monaco-editor": "^0.56.0",
     "motion": "^13.3.0",
@@ -35,5 +37,8 @@
     "prettier": "^3.9.7",
     "typescript": "^7.0.2",
     "vite": "^8.3.0"
+  },
+  "overrides": {
+    "dompurify": "3.4.15"
   }
 }

@@ -5,7 +5,9 @@ await mkdir("artifacts", { recursive: true });
 const browser = await chromium.launch({
   executablePath:
     process.env.CHROME_PATH ??
-    "C:/Program Files/Google/Chrome/Application/chrome.exe",
+    (process.platform === "win32"
+      ? "C:/Program Files/Google/Chrome/Application/chrome.exe"
+      : undefined),
   headless: true,
   args: ["--disable-gpu"],
 });
@@ -81,15 +83,25 @@ try {
     });
     if (section === "Benchmarks") {
       assert((await page.locator("main").innerText()).includes("NOT RUN"));
-      const measured = await (await fetch(base + '/api/metrics')).json();
-      const demo = measured.runs.find(r => r.kind === 'demo');
+      const measured = await (await fetch(base + "/api/metrics")).json();
+      const demo = measured.runs.find((r) => r.kind === "demo");
       if (demo) {
-        await page.getByLabel('Results dataset').selectOption(demo.id);
+        await page.getByLabel("Results dataset").selectOption(demo.id);
         await page.waitForTimeout(800);
         const summary = Object.values(demo.analysis.groups)[0];
-        assert.equal(await page.locator('.metric-card').first().locator('strong').innerText(), summary.kill_at_1.toFixed(1) + '%');
-        await page.screenshot({ path: 'artifacts/benchmarks-demo.png', fullPage: true });
-        await page.getByLabel('Results dataset').selectOption('official');
+        assert.equal(
+          await page
+            .locator(".metric-card")
+            .first()
+            .locator("strong")
+            .innerText(),
+          summary.kill_at_1.toFixed(1) + "%",
+        );
+        await page.screenshot({
+          path: "artifacts/benchmarks-demo.png",
+          fullPage: true,
+        });
+        await page.getByLabel("Results dataset").selectOption("official");
       }
     }
   }

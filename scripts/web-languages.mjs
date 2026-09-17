@@ -4,7 +4,9 @@ import { writeFile } from "node:fs/promises";
 const browser = await chromium.launch({
   executablePath:
     process.env.CHROME_PATH ??
-    "C:/Program Files/Google/Chrome/Application/chrome.exe",
+    (process.platform === "win32"
+      ? "C:/Program Files/Google/Chrome/Application/chrome.exe"
+      : undefined),
   headless: true,
 });
 const context = await browser.newContext({

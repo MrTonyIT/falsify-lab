@@ -1,5 +1,11 @@
 # Research and engineering roadmap
 
+**v3 update:** the unchecked list below is the historical planning baseline.
+Completed hardening and remaining external blockers are recorded in
+[HARDENING_REPORT.md](HARDENING_REPORT.md). Do not interpret the old checkboxes as
+the current implementation state. The next research milestone is real Docker
+validation, reviewed corpus curation and a reviewed paid pilot, not more UI features.
+
 Status: proposed work, not completed capabilities. Prioritize credible execution and
 correct conclusions before adding languages or publishing a public service.
 

@@ -30,6 +30,10 @@ def main():
     resource.setrlimit(resource.RLIMIT_NOFILE, (128, 128))
     payload = json.load(sys.stdin)
     name, compile_cmd, run_cmd = SPECS[payload['language']]
+    # Per-process CPU limit inherited by compiler and target. Container wall/PID
+    # limits remain necessary because children can each consume CPU.
+    cpu_seconds = int(payload['runSeconds']) + 20
+    resource.setrlimit(resource.RLIMIT_CPU, (cpu_seconds, cpu_seconds + 1))
     with tempfile.TemporaryDirectory(dir='/work') as work:
         os.chdir(work)
         os.environ.update(HOME=work, GOCACHE=work + '/cache', GOPATH=work + '/go',

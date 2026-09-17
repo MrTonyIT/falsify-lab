@@ -1,0 +1,16 @@
+import { assert,validateConfig,validateProblem,sha256 } from './domain.js';
+import { configIdentity } from './llm.js';
+import { corpusIdentity } from './corpus.js';
+import { verifyBaseline } from './baseline.js';
+export function officialPreflight({config,problems,evidence,baseline,sandbox,gitCommit}) {
+  const failures=[];const check=(name,fn)=>{try{fn();}catch(e){failures.push(`${name}: ${e.message}`);}};
+  check('configuration',()=>validateConfig(config,true));
+  check('corpus',()=>{assert(problems.length===30&&['A','B','C'].every(d=>problems.filter(p=>p.division===d).length===10),'30 problems: 10 per division');problems.forEach(p=>validateProblem(p,{official:true,allowRuntimeError:config.allowRuntimeError===true}));});
+  check('sandbox',()=>{assert(sandbox.kind==='docker'&&/^sha256:[a-f0-9]{64}$/.test(sandbox.imageId),'Verified Docker image ID required');assert(evidence.sandboxIntegration?.imageId===sandbox.imageId && evidence.sandboxIntegration?.passed===true,'Sandbox integration evidence for current image required');});
+  check('compatibility',()=>{assert(evidence.compatibility?.config_id===configIdentity(config),'Compatibility call must match exact configuration');assert(evidence.compatibility?.model===config.model&&evidence.compatibility?.nonempty===true&&evidence.compatibility?.longPrompt===true,'Concrete snapshot and long-prompt compatibility call required');});
+  check('quality',()=>{assert(evidence.quality?.corpus_id===corpusIdentity(problems),'Quality audit missing/stale');assert(evidence.quality?.problems?.length===30,'Thirty problem audits required');for(const p of problems){const q=evidence.quality.problems.find(q=>q.problem_id===p.id);assert(q?.referenceSamplesAgree&&q.validator.valid>=2&&q.validator.invalid>=2&&q.rejected.length===0,'Validator/reference/sample audit incomplete');assert(q.accepted.length===25&&[...p.dev,...p.heldOut].every(s=>q.accepted.some(a=>a.id===s.id&&a.hash===sha256(s.code)&&a.samplePassed===true)),'Every target must pass samples with source hash evidence');}});
+  check('baseline',()=>{verifyBaseline(baseline,problems);assert(evidence.baseline?.sha===baseline.sha&&evidence.baseline?.completed===true&&evidence.baseline?.log_digest,'Completed frozen baseline evidence required');});
+  check('operator',()=>{assert(evidence.accountUsageLimitConfigured===true,'Operator must configure provider account usage limit');assert(evidence.pricing?.verified===true&&evidence.pricing?.config_id===configIdentity(config)&&evidence.pricing?.source&&evidence.pricing?.verified_at,'Pricing verification for current configuration required');assert(evidence.pilot?.pairs>=20&&evidence.pilot?.manuallyReviewed===true&&evidence.pilot?.corpus_id===corpusIdentity(problems)&&evidence.pilot?.logs,'Twenty-pair pilot and manual log review required');assert(evidence.privacyReview?.passed===true&&evidence.privacyReview?.git_commit===gitCommit,'Privacy review must match code revision');});
+  check('revision',()=>assert(/^[a-f0-9]{40}$/.test(gitCommit),'Record a real Git commit before official run'));
+  return {ok:failures.length===0,failures,checked_at:new Date().toISOString(),corpus_id:corpusIdentity(problems),config_id:configIdentity(config)};
+}

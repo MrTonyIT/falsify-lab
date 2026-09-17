@@ -1,0 +1,7 @@
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends python3 gcc g++ nodejs node-typescript default-jdk-headless golang-go rustc ruby php-cli mono-mcs \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -s /usr/bin/python3 /usr/local/bin/python
+COPY multilang_runner.py /runner.py
+USER 65534:65534
+WORKDIR /work

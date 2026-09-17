@@ -1,0 +1,22 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp,readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { MockLLM, Budget, estimatedCost } from '../src/llm.js';
+import { runPair } from '../src/falsify.js';
+import { build_falsify_prompt,parseResponse,feedbackFor } from '../src/prompt.js';
+import { JsonlLog,readJsonl } from '../src/logging.js';
+const p={id:'p',statement:'statement',constraints:'constraints',division:'A',references:'SECRET_REFERENCE',validator:'SECRET_VALIDATOR'};
+const target={id:1,split:'dev',code:'target',passedTestCount:4};
+test('parser selects last nonempty Python block; empty/malformed fail',()=>{assert.equal(parseResponse('').error,'empty_response');assert.equal(parseResponse('plain').script,null);assert.equal(parseResponse('```python\nprint(1)\n```\n```python\nprint(2)\n```').script,'print(2)');});
+test('prompt privacy excludes private fields and oracle-derived feedback',()=>{const h=feedbackFor({verdict:'survived',data:Buffer.from('x'.repeat(800)),expected:'SECRET_EXPECTED',got:'SECRET_OUTPUT',detail:'SECRET_VALIDATOR'},1);const prompt=build_falsify_prompt(p,{...target,heldOut:'SECRET_HELDOUT'},[{...h,expected:'SECRET_EXPECTED',reason:'SECRET_INJECTED'}]);assert(!prompt.includes('SECRET'));assert.equal(h.input.length,500);assert.throws(()=>build_falsify_prompt(p,{...target,split:'held-out'}));});
+for(const killAt of [1,3,null])test('loop bookkeeping kill at '+killAt,async()=>{
+  const dir=await mkdtemp(join(tmpdir(),'falsifier-'));const log=new JsonlLog(dir);const llm=new MockLLM(['```python\nprint(1)\n```','', '```python\nprint(3)\n```']);let n=0;
+  const evaluator={evaluate:async(p,t,s)=>({verdict:++n===killAt?'kill':s?'survived':'gen_failed',data:Buffer.from('1'),semanticSize:1,detail:'fixture'})};
+  const result=await runPair({problem:p,target,evaluator,llm,log,metadata:{run_id:'test',git_commit:'test',model:'mock',reasoning_effort:'high'}});
+  assert.equal(result.killed,killAt!==null);assert.equal(result.kill_at_1,killAt===1);assert.equal(result.attempts_used,killAt??3);assert.equal(llm.prompts.length,killAt??3);
+  assert.equal((await readJsonl(join(dir,'attempts.jsonl'))).length,killAt??3);assert.equal((await readJsonl(join(dir,'finals.jsonl'))).length,1);
+  if(killAt!==1)assert(llm.prompts[1].includes('survived'));
+});
+test('cost includes cached tokens; guard reserves before calls',()=>{assert.equal(estimatedCost({tokensIn:1000000,tokensOut:1000000,cachedTokens:500000},{input:2,cachedInput:1,output:10}),11.5);const b=new Budget(2);b.reserve(2);b.charge(1);assert.throws(()=>b.reserve(2));});

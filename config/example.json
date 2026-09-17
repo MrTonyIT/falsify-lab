@@ -1,0 +1,14 @@
+{
+  "model": "REPLACE_WITH_VERIFIED_PROVIDER_SNAPSHOT",
+  "snapshotPinned": false,
+  "endpoint": "https://REPLACE_WITH_PROVIDER/v1/chat/completions",
+  "reasoningEffort": "high",
+  "maxCompletionTokens": 16000,
+  "maxInputTokens": 64000,
+  "temperature": null,
+  "responseCache": false,
+  "costLimitUsd": 10,
+  "pricing": {"input": 0, "cachedInput": 0, "output": 0},
+  "allowRuntimeError": false,
+  "sandboxImage": "ai-falsifier-python:local"
+}

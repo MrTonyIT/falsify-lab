@@ -1,0 +1,22 @@
+name: Docker runtime validation
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  runtimes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: docker build -t ai-falsifier-python:local sandbox
+      - run: docker build -f sandbox/Dockerfile.multilang -t ai-falsifier-multilang:local sandbox
+      - run: npm test
+        env:
+          FALSIFIER_DOCKER_TEST: '1'
+          FALSIFIER_MULTILANG_TEST: '1'

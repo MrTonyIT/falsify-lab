@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { smokeProblem,validate } from '../fixtures/sum-problem.js';
+import { testValidator,permutation,tree } from '../src/validators.js';
+import { stratifiedSplit,qualityAudit,corpusIdentity } from '../src/corpus.js';
+import { extractSource,extractSamples,CodeforcesClient } from '../src/acquisition.js';
+test('fixture validator enforces aggregate, range and format constraints',async()=>{await testValidator(smokeProblem());assert.equal(validate(Buffer.from('1\n1\n0\nEXTRA')).ok,false);});
+test('structural validator helpers reject cycles and duplicates',()=>{assert(permutation([3,1,2],3));assert(!permutation([1,1],2));assert(tree([[1,2],[2,3]],3));assert(!tree([[1,2],[2,1]],3));});
+test('split reproducible, stratified and disjoint; sample gate cannot be skipped',()=>{const pool=Array.from({length:25},(_,i)=>({id:i,passedTestCount:i+1,samplePassed:true}));const a=stratifiedSplit(pool);assert.equal(a.dev.length,15);assert.equal(a.heldOut.length,10);assert.deepEqual(a,stratifiedSplit(pool));assert(!a.dev.some(s=>a.heldOut.some(t=>t.id===s.id)));assert.throws(()=>stratifiedSplit(pool.map(s=>({...s,samplePassed:false}))));});
+test('sample filtering actually executes each target and detects failure',async()=>{let count=0;const p=smokeProblem();const result=await qualityAudit(p,{prepare:async()=>({expected:Buffer.from('3')}),judge:async(p,t)=>{count++;return {verdict:t.split==='dev'?'survived':'kill'};}});assert.equal(count,2);assert.equal(result.rejected.length,1);assert.equal(result.accepted.length,1);assert(corpusIdentity([p]).startsWith('sha256:'));});
+test('HTML source and sample parsing; unknown pages fail closed',()=>{assert.equal(extractSource('<pre id="program-source-text">print(&quot;&lt;&quot;)\n</pre>'),'print("<")\n');assert.deepEqual(extractSamples('<div class="input"><pre>1<br>2</pre></div><div class="output"><pre>3</pre></div>'),[{input:'1\n2',output:'3'}]);assert.throws(()=>extractSource('challenge'));assert.throws(()=>new CodeforcesClient('private',{intervalMs:1}));assert.throws(()=>new CodeforcesClient('private').get('/contest/1/hacks'));});

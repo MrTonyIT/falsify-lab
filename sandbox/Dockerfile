@@ -1,0 +1,5 @@
+ARG PYTHON_IMAGE=python:3.12-slim
+FROM ${PYTHON_IMAGE}
+COPY runner.py /runner.py
+USER 65534:65534
+WORKDIR /tmp

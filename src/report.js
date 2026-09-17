@@ -1,0 +1,20 @@
+import { readJsonl } from './logging.js';
+import { analyze } from './metrics.js';
+import { join } from 'node:path';
+import { writeFile } from 'node:fs/promises';
+import { assert } from './domain.js';
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=n=>n===null||n===undefined?'N/A':Number(n).toFixed(2);
+export async function report(directory,{seed=12345,repetitions=2000,labels=[],comparisonDirectories=[]}={}) {
+  const attempts=[],finals=[],events=[],track2=[];
+  for(const dir of [directory,...comparisonDirectories]){attempts.push(...await readJsonl(join(dir,'attempts.jsonl')));finals.push(...await readJsonl(join(dir,'finals.jsonl')));events.push(...await readJsonl(join(dir,'events.jsonl')));track2.push(...await readJsonl(join(dir,'track2.jsonl')));}
+  const seen=new Set();for(const f of finals){const key=JSON.stringify([f.run_id,f.method,f.problem_id,f.submission_id]);assert(!seen.has(key),'Duplicate final records: do not silently double-count');seen.add(key);const a=attempts.filter(a=>a.run_id===f.run_id&&a.method===f.method&&a.problem_id===f.problem_id&&a.submission_id===f.submission_id);assert(a.length===f.attempts_used,'Final/attempt mismatch');const label=labels.find(l=>l.problem_id===f.problem_id&&l.submission_id===f.submission_id);if(label)f.bug_type=label.bug_type;}
+  const summary=analyze(finals,attempts,{seed,repetitions});
+  const starts=events.filter(e=>e.event==='run_started');
+  const completed=starts.length>0&&starts.every(s=>events.some(e=>e.event==='run_complete'&&e.run_id===s.run_id));
+  const official=starts.some(s=>s.kind==='official'&&events.some(e=>e.event==='run_complete'&&e.run_id===s.run_id));
+  const result={...summary,official_status:official?'MEASURED':'NOT RUN',run_complete:completed,attempt_count:attempts.length,observed_cost_usd:attempts.reduce((s,a)=>s+a.cost_usd,0),track2};
+  const rows=Object.entries(summary.groups).map(([key,m])=>`<tr><td>${esc(key)}</td><td>${m.pairs}</td><td>${fmt(m.kill_at_1)}</td><td>${fmt(m.kill_at_3)}</td><td>${fmt(m.kill_at_50)}</td><td>${fmt(m.delta_pp)}</td><td>${fmt(m.invalid_rate)}</td><td>${fmt(m.unusable_rate)}</td><td>${fmt(m.inconclusive_rate)}</td><td>${fmt(m.median_semantic_size)}</td><td>${fmt(m.median_input_bytes)}</td><td>${fmt(m.cost_per_kill)}</td></tr>`).join('');
+  const html=`<!doctype html><html lang="en"><meta charset="utf-8"><title>AI Falsifier results</title><style>body{font:16px system-ui;max-width:1200px;margin:40px auto;padding:0 20px;color:#182433}table{border-collapse:collapse;width:100%;font-size:13px}td,th{padding:10px;border:1px solid #ccd3db;text-align:left}th{background:#edf1f5}pre{white-space:pre-wrap;overflow-wrap:anywhere}</style><h1>AI Falsifier</h1><p>Official benchmark: <strong>${result.official_status}</strong>. Run complete: ${completed?'yes':'no'}. ${official?'':'Any measurements below are development/pilot data, not official findings.'}</p><p>JSONL is authoritative. Kill rates exclude un-killed pairs with an inconclusive attempt; full-denominator rates and excluded counts are included in report.json. Minimality is problem-defined semantic size, separately from input bytes.</p><table><thead><tr><th>Run / method / origin</th><th>Pairs</th><th>Kill@1 %</th><th>Kill@3 %</th><th>Kill@50 %</th><th>Gain pp</th><th>Invalid %</th><th>Unusable %</th><th>Inconclusive %</th><th>Median size</th><th>Median bytes</th><th>$/kill</th></tr></thead><tbody>${rows||'<tr><td colspan="12">NOT RUN</td></tr>'}</tbody></table><p>Random3 uses the same three-test budget; random50 is the extended comparison. Official Codeforces tests are a conceptual upper bound and are never acquired. Effective sample size is closer to problem count than submission count.</p><h2>Strata, confidence intervals and survivors</h2><pre>${esc(JSON.stringify(summary.groups,null,2))}</pre><h2>Frozen-suite held-out evaluation</h2><pre>${esc(JSON.stringify(track2,null,2))}</pre></html>`;
+  await writeFile(join(directory,'report.json'),JSON.stringify(result,null,2));await writeFile(join(directory,'report.html'),html);return result;
+}

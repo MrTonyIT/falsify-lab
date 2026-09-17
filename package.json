@@ -1,0 +1,39 @@
+{
+  "name": "ai-falsifier",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "smoke": "node src/cli.js smoke",
+    "report": "node src/cli.js report",
+    "build": "tsc -p web/tsconfig.json && vite build web --config web/vite.config.ts",
+    "start": "node server/index.js",
+    "dev": "vite web --config web/vite.config.ts",
+    "test:e2e": "node scripts/web-smoke.mjs",
+    "test:languages": "node scripts/web-languages.mjs"
+  },
+  "dependencies": {
+    "@fontsource/inter": "^5.3.0",
+    "@fontsource/jetbrains-mono": "^5.3.0",
+    "@monaco-editor/react": "^4.7.0",
+    "lucide-react": "^1.46.0",
+    "monaco-editor": "^0.56.0",
+    "motion": "^13.3.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "recharts": "^3.10.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "playwright": "^1.63.0",
+    "prettier": "^3.9.7",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0"
+  }
+}

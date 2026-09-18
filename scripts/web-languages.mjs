@@ -136,6 +136,13 @@ try {
   }
   await select.selectOption("ar");
   await page.locator(".mobile-menu").click();
+  // Opening uses a CSS transform transition; click completion is not animation completion.
+  await page.waitForFunction(() => {
+    const menu = document.querySelector(".sidebar.open");
+    if (!menu) return false;
+    const box = menu.getBoundingClientRect();
+    return box.x >= 0 && box.right <= innerWidth + 1;
+  });
   const sidebar = await page.locator(".sidebar").boundingBox();
   assert(
     sidebar.x >= 0 && sidebar.x + sidebar.width <= 391,

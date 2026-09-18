@@ -170,33 +170,34 @@ test("paired bootstrap preserves matching and rejects missing or duplicate pairs
     () => pairedProblemBootstrap(left, right.slice(1)),
     /same assigned/,
   );
-  test("relabeling a held-out source or copying an oracle source cannot bypass partition gates", async () => {
-    const p = smokeProblem();
-    await assert.rejects(
-      () =>
-        runPair({
-          problem: p,
-          target: { ...p.heldOut[0], split: "dev" },
-          metadata: { kind: "pilot" },
-        }),
-      /relabeled/,
-    );
-    await assert.rejects(
-      () =>
-        runPair({
-          problem: p,
-          target: { ...p.heldOut[0], id: "renamed", split: "dev" },
-          metadata: { kind: "pilot" },
-        }),
-      /relabeled/,
-    );
-    p.dev[0].code = p.references[0].code;
-    assert.throws(() => validateProblem(p), /source overlap/);
-  });
+
   assert.throws(
     () => pairedProblemBootstrap([...left, left[0]], right),
     /Duplicate/,
   );
+});
+test("relabeling a held-out source or copying an oracle source cannot bypass partition gates", async () => {
+  const p = smokeProblem();
+  await assert.rejects(
+    () =>
+      runPair({
+        problem: p,
+        target: { ...p.heldOut[0], split: "dev" },
+        metadata: { kind: "pilot" },
+      }),
+    /relabeled/,
+  );
+  await assert.rejects(
+    () =>
+      runPair({
+        problem: p,
+        target: { ...p.heldOut[0], id: "renamed", split: "dev" },
+        metadata: { kind: "pilot" },
+      }),
+    /relabeled/,
+  );
+  p.dev[0].code = p.references[0].code;
+  assert.throws(() => validateProblem(p), /source overlap/);
 });
 test("persistent reservations survive restart and block uncertain billing", async () => {
   const path = join(await temp(), "budget.json");

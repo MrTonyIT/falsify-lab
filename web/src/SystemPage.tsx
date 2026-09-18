@@ -40,9 +40,10 @@ export function SystemPage({ page, status, offline, refresh }: any) {
       />
       <div className="science-note" role="status">
         <span>
-          Protocol 3.0.0 · Runtime integration validation: NOT RUN · Provider
-          validation: NOT RUN · Unseen-problem evaluation: NOT RUN. Availability
-          checks do not prove runtime correctness.
+          Protocol {status?.protocol ?? "checking"} · Runtime integration
+          validation: NOT RUN · Provider validation: NOT RUN · Unseen-problem
+          evaluation: NOT RUN. Availability checks do not prove runtime
+          correctness.
         </span>
       </div>
       <div className="system-grid">

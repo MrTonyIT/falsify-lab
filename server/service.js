@@ -20,9 +20,10 @@ import { loadCorpus } from "../src/corpus.js";
 import { analyzeAsync } from "./analysis.js";
 import { tokenChecker } from "../src/checkers.js";
 import { encodeHistory, decodeHistory } from "./history.js";
+import { PROTOCOL_VERSION } from "../src/protocol.js";
 import { assessOracle } from "../src/oracle.js";
 import { sealEvidence, inspectEvidence } from "../src/evidence.js";
-import { assert, sha256, validateConfig } from "../src/domain.js";
+import { assert, sha256, validateConfig, LIMITS } from "../src/domain.js";
 import { smokeProblem } from "../fixtures/sum-problem.js";
 
 export class ApiError extends Error {
@@ -152,7 +153,7 @@ export class LabService {
       multiAvailable = true;
     } catch {}
     return {
-      protocol: "3.0.0",
+      protocol: PROTOCOL_VERSION,
       evidence: {
         dockerValidation: "NOT RUN",
         providerValidation: "NOT RUN",
@@ -175,7 +176,7 @@ export class LabService {
             : "not_configured",
         model: this.config?.model ?? null,
         effort: "high",
-        maxAttempts: 3,
+        maxAttempts: LIMITS.attempts,
         message: this.configError,
       },
       corpus: {
@@ -388,7 +389,7 @@ export class LabService {
           validator: async (data) => {
             const r = await this.sandbox.run(payload.validator, data, {
               role: "validator",
-              seconds: 30,
+              seconds: LIMITS.runSeconds,
             });
             if (r.timedOut || r.mle || r.overflow)
               throw new Error(
@@ -499,7 +500,7 @@ export class LabService {
         ? {
             model: "scripted-demo",
             reasoningEffort: "high",
-            maxCompletionTokens: 16000,
+            maxCompletionTokens: LIMITS.maxCompletionTokens,
             pricing: { input: 0, output: 0, cachedInput: 0 },
           }
         : this.config;
@@ -573,13 +574,13 @@ export class LabService {
                   Buffer.from(target.code, "utf8").toString("hex") +
                   "').decode('utf-8'), '<submission>', 'exec')",
                 Buffer.alloc(0),
-                { role: "syntax-check", seconds: 10 },
+                { role: "syntax-check", seconds: LIMITS.syntaxSeconds },
               )
             : await this.multilang.run(target.code, Buffer.alloc(0), {
                 language: job.language,
                 multilang: true,
                 prepareOnly: true,
-                seconds: 1,
+                seconds: LIMITS.prepareSeconds,
               });
         if (checked.timedOut || checked.mle || checked.overflow) {
           const error = new Error(

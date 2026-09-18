@@ -1,3 +1,4 @@
+import { preserveResponse } from "./responses.js";
 import { assert, devTarget, sha256, Verdict as V, LIMITS } from "./domain.js";
 import { corpusIdentity } from "./corpus.js";
 import { protocolBinding, currentProtocol, digest } from "./protocol.js";
@@ -216,7 +217,7 @@ export async function evaluateHeldOut(problem, suite, evaluator, corpusId) {
 }
 export async function generateBlackbox({
   problem,
-  k = 3,
+  k = LIMITS.attempts,
   llm,
   evaluator,
   log,
@@ -226,6 +227,11 @@ export async function generateBlackbox({
   const candidates = [];
   for (let i = 1; i <= k; i++) {
     const response = await llm.call(buildBlackboxPrompt(problem, i, k));
+    await preserveResponse(log, response, metadata, {
+      problem_id: problem.id,
+      attempt: i,
+      retainRaw: metadata.retain_raw_responses !== false,
+    });
     if (metadata.snapshot_pinned && response.providerModel !== metadata.model) {
       await log.append("events", {
         run_id: metadata.run_id,

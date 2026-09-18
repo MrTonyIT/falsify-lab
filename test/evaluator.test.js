@@ -66,7 +66,7 @@ test("checkers normalize output without accepting extra tokens", () => {
   assert(!tokenChecker("1", "1 2"));
   assert(lineChecker("abc  \r\n\r\n", "abc\n"));
 });
-test("Docker command includes isolation and no shell/cpu quota substitutions", () => {
+test("Docker command includes isolation, no shell and protocol CPU quota", () => {
   const a = dockerArgs("image", "name", {
     seconds: 30,
     memoryBytes: LIMITS.memoryBytes,
@@ -83,6 +83,6 @@ test("Docker command includes isolation and no shell/cpu quota substitutions", (
     "--tmpfs",
   ])
     assert(a.includes(x));
-  assert(!a.includes("--cpus"));
+  assert.equal(a[a.indexOf("--cpus") + 1], String(LIMITS.cpus));
   assert.equal(a[a.indexOf("--memory") + 1], a[a.indexOf("--memory-swap") + 1]);
 });

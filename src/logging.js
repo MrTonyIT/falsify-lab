@@ -57,7 +57,14 @@ export class JsonlLog {
   }
   async append(kind, record) {
     assert(
-      ["attempts", "finals", "track2", "blackbox", "events"].includes(kind),
+      [
+        "attempts",
+        "finals",
+        "track2",
+        "blackbox",
+        "events",
+        "responses",
+      ].includes(kind),
       "Unknown log kind",
     );
     for (const key of kind === "attempts"
@@ -75,7 +82,7 @@ export class JsonlLog {
     await appendFile(
       join(this.directory, kind + ".jsonl"),
       JSON.stringify(record) + "\n",
-      "utf8",
+      { encoding: "utf8", mode: 0o600 },
     );
   }
 }

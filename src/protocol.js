@@ -1,9 +1,43 @@
 import { createHash } from "node:crypto";
-export const PROTOCOL_VERSION = "3.0.0";
-export const EVIDENCE_SCHEMA = 3;
-export const PROTOCOL = Object.freeze({
+export const PROTOCOL_VERSION = "3.1.0";
+export const EVIDENCE_SCHEMA = 4;
+const attemptBudget = 3;
+export const SCIENTIFIC_LIMITS = deepFreeze({
+  attempts: attemptBudget,
+  seed: 12345,
+  generatorSeconds: 10,
+  runSeconds: 30,
+  compileSeconds: 20,
+  syntaxSeconds: 10,
+  prepareSeconds: 1,
+  memoryBytes: 1073741824,
+  inputBytes: 8388608,
+  outputBytes: 8388608,
+  stderrBytes: 65536,
+  pids: 64,
+  cpus: 2,
+  tmpfsMiB: 64,
+  workMiB: 256,
+  pythonFiles: 64,
+  multilangFiles: 128,
+  heapMiB: 256,
+  codeCacheMiB: 64,
+  cpuHardGraceSeconds: 1,
+  maxCompletionTokens: 16000,
+  baselineBudgets: [attemptBudget, 50],
+  providerResponseBytes: 8388608,
+});
+export const RESOURCE_POLICY_ID = digest(SCIENTIFIC_LIMITS);
+export const PROTOCOL = deepFreeze({
   version: PROTOCOL_VERSION,
   checkerVersion: 2,
+  population: {
+    problems: 30,
+    perDivision: 10,
+    devPerProblem: 15,
+    heldOutPerProblem: 10,
+    pilotMinimum: 20,
+  },
   oraclePolicy: "review-bound-or-explicit-synthetic; unverified-fails-closed",
   crashPolicy: "ambiguous-runtime-failure-is-inconclusive",
   feedback:
@@ -11,8 +45,7 @@ export const PROTOCOL = Object.freeze({
   selection: "DEV greedy set cover; immutable content-addressed suite",
   primaryMetric: "all_pair_kill_at_3",
   secondaryMetric: "eligible_pair_kill_at_3",
-  attempts: 3,
-  seed: 12345,
+  limits: SCIENTIFIC_LIMITS,
 });
 export function canonicalJson(value) {
   const normalize = (v) => {
@@ -33,8 +66,11 @@ export function canonicalJson(value) {
   };
   return JSON.stringify(normalize(value));
 }
-export const digest = (value) =>
-  "sha256:" + createHash("sha256").update(canonicalJson(value)).digest("hex");
+export function digest(value) {
+  return (
+    "sha256:" + createHash("sha256").update(canonicalJson(value)).digest("hex")
+  );
+}
 export const PROTOCOL_ID = digest(PROTOCOL);
 export function deepFreeze(obj) {
   if (obj && typeof obj === "object" && !Object.isFrozen(obj)) {
@@ -48,12 +84,14 @@ export function protocolBinding() {
     protocol_version: PROTOCOL_VERSION,
     protocol_id: PROTOCOL_ID,
     evidence_schema: EVIDENCE_SCHEMA,
+    resource_policy_id: RESOURCE_POLICY_ID,
   };
 }
 export function currentProtocol(record) {
   return (
     record?.protocol_id === PROTOCOL_ID &&
     record?.protocol_version === PROTOCOL_VERSION &&
-    record?.evidence_schema === EVIDENCE_SCHEMA
+    record?.evidence_schema === EVIDENCE_SCHEMA &&
+    record?.resource_policy_id === RESOURCE_POLICY_ID
   );
 }

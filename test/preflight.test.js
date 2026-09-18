@@ -8,6 +8,8 @@ import { corpusIdentity } from "../src/corpus.js";
 import { configIdentity } from "../src/llm.js";
 import { freezeBaseline } from "../src/baseline.js";
 import { officialPreflight } from "../src/preflight.js";
+import { runtimeFixture, planFixture } from "./review-fixtures.js";
+import { independenceBinding } from "../src/independence.js";
 test("preflight accepts complete bound evidence and rejects stale source evidence", () => {
   // Synthetic records for gate testing only; these are never benchmark measurements.
   const problems = Array.from({ length: 30 }, (_, i) => {
@@ -65,6 +67,15 @@ test("preflight accepts complete bound evidence and rejects stale source evidenc
     costLimitUsd: 1,
     pricing: { input: 1, cachedInput: 1, output: 1 },
   };
+  problems.independenceReview = {
+    ...protocolBinding(),
+    status: "reviewed",
+    reviewer: "TEST DOUBLE",
+    reviewed_at: "2026-01-01",
+    rationale:
+      "Repeated synthetic fixtures exercise gates, never research evidence",
+    binding: independenceBinding(problems),
+  };
   const corpusId = corpusIdentity(problems),
     configId = configIdentity(config),
     baseline = freezeBaseline(problems),
@@ -109,6 +120,19 @@ test("preflight accepts complete bound evidence and rejects stale source evidenc
     },
     privacyReview: { passed: true, git_commit: commit },
   };
+  const runtime = runtimeFixture(commit, imageId);
+  const binding = {
+    ...protocolBinding(),
+    git_commit: commit,
+    corpus_id: corpusId,
+    config_id: configId,
+    image_id: imageId,
+    runtime_validation_id: runtime.sha,
+  };
+  for (const key of ["baseline", "pilot", "compatibility", "privacyReview"])
+    Object.assign(evidence[key], binding);
+  evidence.runtimeValidation = runtime;
+  evidence.analysisPlan = planFixture(binding);
   const args = {
     config,
     problems,
@@ -118,6 +142,25 @@ test("preflight accepts complete bound evidence and rejects stale source evidenc
     gitCommit: commit,
   };
   assert.deepEqual(officialPreflight(args).failures, []);
+  for (const key of ["baseline", "pilot", "compatibility", "privacyReview"])
+    for (const field of [
+      "git_commit",
+      "corpus_id",
+      "config_id",
+      "image_id",
+      "runtime_validation_id",
+      "resource_policy_id",
+    ]) {
+      const old = evidence[key][field];
+      evidence[key][field] = "stale";
+      assert(
+        officialPreflight(args).failures.some((f) =>
+          f.startsWith(key + "-binding"),
+        ),
+        `${key}/${field}`,
+      );
+      evidence[key][field] = old;
+    }
   evidence.quality.problems[0].accepted[0].hash = "tampered";
   assert(officialPreflight(args).failures.some((f) => f.startsWith("quality")));
 });

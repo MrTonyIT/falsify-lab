@@ -37,7 +37,7 @@ without known misclassification in the test corpus; all unverified scope stated 
       cluster uncertainty by problem and justify sample size.
 - [ ] Freeze selection before held-out evaluation; assess contamination and performance
       on new problems, not only unseen submissions to known problems.
-- [ ] Preserve model responses, runtime identity and evidence for independent replication.
+- [x] Implement private response artifacts and protocol/runtime binding; independent replication measurements still require actual runs.
 - [ ] Investigate constraint-preserving counterexample reduction and transfer of tests
       across submissions. Treat these as hypotheses, not established novelty.
 

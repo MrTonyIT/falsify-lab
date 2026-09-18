@@ -6,17 +6,27 @@ permissions:
 jobs:
   runtimes:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: "22"
           cache: npm
       - run: npm ci
-      - run: docker build -t ai-falsifier-python:local sandbox
-      - run: docker build -f sandbox/Dockerfile.multilang -t ai-falsifier-multilang:local sandbox
-      - run: npm test
-        env:
-          FALSIFIER_DOCKER_TEST: '1'
-          FALSIFIER_MULTILANG_TEST: '1'
+      - name: Resolve digest-pinned bases and build
+        run: |
+          docker pull python:3.12-slim
+          docker pull debian:bookworm-slim
+          python_base=$(docker image inspect python:3.12-slim --format '{{index .RepoDigests 0}}')
+          multilang_base=$(docker image inspect debian:bookworm-slim --format '{{index .RepoDigests 0}}')
+          docker build --build-arg "PYTHON_IMAGE=$python_base" -t ai-falsifier-python:local sandbox
+          docker build --build-arg "MULTILANG_IMAGE=$multilang_base" -f sandbox/Dockerfile.multilang -t ai-falsifier-multilang:local sandbox
+      - name: Run runtime tests and produce bound evidence
+        run: node scripts/runtime-validation.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: runtime-validation-${{ github.sha }}
+          path: artifacts/runtime-validation*
+          if-no-files-found: error

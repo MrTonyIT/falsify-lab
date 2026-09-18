@@ -1,8 +1,10 @@
+import { verifyPrerequisite } from "./prerequisites.js";
+import { SCIENTIFIC_LIMITS as SCI_LIMITS } from "./protocol.js";
 import { inspectEvidence } from "./evidence.js";
 import { readJsonl } from "./logging.js";
 import { analyze } from "./metrics.js";
 import { join } from "node:path";
-import { writeFile } from "node:fs/promises";
+import { writeFile, readFile } from "node:fs/promises";
 import { assert } from "./domain.js";
 const esc = (s) =>
   String(s).replace(
@@ -17,12 +19,24 @@ const fmt = (n) =>
 export async function report(
   directory,
   {
-    seed = 12345,
+    seed = SCI_LIMITS.seed,
     repetitions = 2000,
     labels = [],
     comparisonDirectories = [],
+    includeScripts = false,
   } = {},
 ) {
+  const evidence = await Promise.all(
+    [directory, ...comparisonDirectories].map(inspectEvidence),
+  );
+  verifyReportComparisons(evidence);
+  if (evidence[0].official) {
+    const plan = JSON.parse(
+      await readFile(join(directory, "analysis-plan.json"), "utf8"),
+    );
+    seed = plan.bootstrap.seed;
+    repetitions = plan.bootstrap.repetitions;
+  }
   const attempts = [],
     finals = [],
     events = [],
@@ -31,7 +45,11 @@ export async function report(
     attempts.push(...(await readJsonl(join(dir, "attempts.jsonl"))));
     finals.push(...(await readJsonl(join(dir, "finals.jsonl"))));
     events.push(...(await readJsonl(join(dir, "events.jsonl"))));
-    track2.push(...(await readJsonl(join(dir, "track2.jsonl"))));
+    track2.push(
+      ...(await readJsonl(join(dir, "track2.jsonl"))).map((r) =>
+        includeScripts ? r : redactScripts(r),
+      ),
+    );
   }
   const seen = new Set();
   for (const f of finals) {
@@ -67,10 +85,15 @@ export async function report(
     starts.every((s) =>
       events.some((e) => e.event === "run_complete" && e.run_id === s.run_id),
     );
-  const evidence = await Promise.all(
-    [directory, ...comparisonDirectories].map(inspectEvidence),
-  );
-  const official = evidence.some((e) => e.official);
+  const official = evidence[0].official;
+  for (const [key, group] of Object.entries(summary.groups)) {
+    const row = finals.find(
+      (f) => key === `${f.run_id}|${f.method}|${f.origin}`,
+    );
+    const item = evidence.find((e) => e.metadata?.run_id === row?.run_id);
+    group.evidence_status = item?.status ?? "INCOMPLETE";
+    group.official_status = item?.official ? "MEASURED" : "NOT RUN";
+  }
   const result = {
     ...summary,
     evidence,
@@ -93,4 +116,61 @@ export async function report(
   );
   await writeFile(join(directory, "report.html"), html);
   return result;
+}
+
+export function verifyReportComparisons(evidence) {
+  const primary = evidence[0];
+  if (evidence.length > 1)
+    for (const other of evidence.slice(1)) {
+      assert(
+        ["VERIFIED", "DEMO"].includes(primary.status) &&
+          ["VERIFIED", "DEMO"].includes(other.status),
+        "Comparison evidence must be complete and current",
+      );
+      for (const key of [
+        "protocol_id",
+        "protocol_version",
+        "evidence_schema",
+        "resource_policy_id",
+        "corpus_id",
+      ])
+        assert(
+          primary.metadata?.[key] !== undefined &&
+            primary.metadata[key] === other.metadata?.[key],
+          "Incompatible comparison " + key,
+        );
+      const official = primary.official
+          ? primary
+          : other.official
+            ? other
+            : null,
+        baseline =
+          primary.metadata.kind === "baseline"
+            ? primary
+            : other.metadata.kind === "baseline"
+              ? other
+              : null;
+      if (official && baseline) {
+        verifyPrerequisite(baseline.metadata, official.metadata);
+        assert(
+          official.metadata.preflight?.baseline_sha ===
+            baseline.metadata.baseline_sha &&
+            typeof baseline.metadata.baseline_sha === "string",
+          "Official comparison requires exact expected baseline",
+        );
+      }
+    }
+  return primary.official;
+}
+export function redactScripts(value) {
+  if (Array.isArray(value)) return value.map(redactScripts);
+  if (value && typeof value === "object")
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(
+          ([k]) => !["script", "generator_script", "raw_response"].includes(k),
+        )
+        .map(([k, v]) => [k, redactScripts(v)]),
+    );
+  return value;
 }

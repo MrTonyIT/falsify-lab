@@ -1,3 +1,4 @@
+import { parseRoute } from "./routes.js";
 import { useDialogFocus } from "./useDialogFocus";
 import { Playground } from "./Playground";
 import { api } from "./api";
@@ -58,9 +59,7 @@ function App() {
   const locale = useLocale();
   const [language, setLanguage] = useState("python");
   const sourceLanguage = languages.find((l) => l.id === language)!;
-  const [page, setPage] = useState(
-    decodeURIComponent(location.hash.slice(1)) || "Playground",
-  );
+  const [page, setPage] = useState(parseRoute(location.hash));
   const [status, setStatus] = useState<any>(null),
     [offline, setOffline] = useState(false),
     [examples, setExamples] = useState<any[]>([]),
@@ -158,8 +157,7 @@ function App() {
       }
     };
     window.addEventListener("keydown", handler);
-    const hash = () =>
-      setPage(decodeURIComponent(location.hash.slice(1)) || "Playground");
+    const hash = () => setPage(parseRoute(location.hash));
     window.addEventListener("hashchange", hash);
     return () => {
       window.removeEventListener("keydown", handler);

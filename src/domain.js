@@ -1,7 +1,8 @@
+import { PROTOCOL as CURRENT_PROTOCOL } from "./protocol.js";
 import { createHash } from "node:crypto";
 import { assessOracle } from "./oracle.js";
 import { checkerProfile } from "./checkers.js";
-import { digest } from "./protocol.js";
+import { digest, SCIENTIFIC_LIMITS } from "./protocol.js";
 
 export const Verdict = Object.freeze({
   KILL: "kill",
@@ -13,17 +14,8 @@ export const Verdict = Object.freeze({
 });
 export const sha256 = (value) =>
   "sha256:" + createHash("sha256").update(value).digest("hex");
-export const LIMITS = Object.freeze({
-  attempts: 3,
-  seed: 12345,
-  generatorSeconds: 10,
-  runSeconds: 30,
-  memoryBytes: 1073741824,
-  inputBytes: 8388608,
-  outputBytes: 8388608,
-  stderrBytes: 65536,
-  pids: 64,
-});
+export const LIMITS = SCIENTIFIC_LIMITS;
+
 export function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
@@ -102,7 +94,7 @@ export function validateProblem(
     assert(
       [
         "WRONG_ANSWER",
-        ...(allowRuntimeError ? ["RUNTIME_ERROR"] : []),
+        ...(!official && allowRuntimeError ? ["RUNTIME_ERROR"] : []),
       ].includes(s.verdict),
       "Ineligible target verdict",
     );
@@ -135,7 +127,8 @@ export function validateProblem(
         "Normalized-source duplicate candidates require bound human review",
       );
     assert(
-      p.dev.length === 15 && p.heldOut.length === 10,
+      p.dev.length === CURRENT_PROTOCOL.population.devPerProblem &&
+        p.heldOut.length === CURRENT_PROTOCOL.population.heldOutPerProblem,
       "Official split is 15 DEV / 10 held-out",
     );
     assert(
@@ -188,7 +181,9 @@ export function validateConfig(c, official = false) {
     );
   }
   assert(
-    c.model && c.reasoningEffort === "high" && c.maxCompletionTokens === 16000,
+    c.model &&
+      c.reasoningEffort === "high" &&
+      c.maxCompletionTokens === LIMITS.maxCompletionTokens,
     "Model, high effort and 16000 completion tokens required",
   );
   assert(

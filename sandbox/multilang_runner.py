@@ -15,9 +15,9 @@ SPECS = {
     'python': ('main.py', ['python3', '-I', '-m', 'py_compile', 'main.py'], ['python3', '-I', 'main.py']),
     'c': ('main.c', ['gcc', '-std=c17', '-O2', 'main.c', '-o', 'program', '-lm'], ['./program']),
     'cpp': ('main.cpp', ['g++', '-std=c++17', '-O2', 'main.cpp', '-o', 'program'], ['./program']),
-    'javascript': ('main.js', ['node', '--check', 'main.js'], ['node', '--max-old-space-size=256', 'main.js']),
-    'typescript': ('main.ts', ['tsc', '--target', 'ES2020', '--module', 'commonjs', '--strict', 'main.ts'], ['node', '--max-old-space-size=256', 'main.js']),
-    'java': ('Main.java', ['javac', '-J-Xmx256m', '-J-XX:ActiveProcessorCount=2', 'Main.java'], ['java', '-Xmx256m', '-XX:ActiveProcessorCount=2', '-XX:ReservedCodeCacheSize=64m', 'Main']),
+    'javascript': ('main.js', ['node', '--check', 'main.js'], ['node', '--max-old-space-size={heapMiB}', 'main.js']),
+    'typescript': ('main.ts', ['tsc', '--target', 'ES2020', '--module', 'commonjs', '--strict', 'main.ts'], ['node', '--max-old-space-size={heapMiB}', 'main.js']),
+    'java': ('Main.java', ['javac', '-J-Xmx{heapMiB}m', '-J-XX:ActiveProcessorCount={cpus}', 'Main.java'], ['java', '-Xmx{heapMiB}m', '-XX:ActiveProcessorCount={cpus}', '-XX:ReservedCodeCacheSize={codeCacheMiB}m', 'Main']),
     'go': ('main.go', ['go', 'build', '-o', 'program', 'main.go'], ['./program']),
     'rust': ('main.rs', ['rustc', '--edition=2021', '-O', 'main.rs', '-o', 'program'], ['./program']),
     'csharp': ('Main.cs', ['mcs', '-out:program.exe', 'Main.cs'], ['mono', 'program.exe']),
@@ -27,22 +27,25 @@ SPECS = {
 
 def main():
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
-    resource.setrlimit(resource.RLIMIT_NOFILE, (128, 128))
+
     payload = json.load(sys.stdin)
+    resource.setrlimit(resource.RLIMIT_NOFILE, (payload['openFiles'], payload['openFiles']))
     name, compile_cmd, run_cmd = SPECS[payload['language']]
+    compile_cmd = [arg.format(**payload) for arg in compile_cmd]
+    run_cmd = [arg.format(**payload) for arg in run_cmd]
     # Per-process CPU limit inherited by compiler and target. Container wall/PID
     # limits remain necessary because children can each consume CPU.
-    cpu_seconds = int(payload['runSeconds']) + 20
-    resource.setrlimit(resource.RLIMIT_CPU, (cpu_seconds, cpu_seconds + 1))
+    cpu_seconds = int(payload['runSeconds']) + int(payload['compileSeconds'])
+    resource.setrlimit(resource.RLIMIT_CPU, (cpu_seconds, cpu_seconds + int(payload['cpuHardGraceSeconds'])))
     with tempfile.TemporaryDirectory(dir='/work') as work:
         os.chdir(work)
         os.environ.update(HOME=work, GOCACHE=work + '/cache', GOPATH=work + '/go',
-                          GOMAXPROCS='2', GOPROXY='off', GOSUMDB='off', GO111MODULE='off')
+                          GOMAXPROCS=str(payload['cpus']), GOPROXY='off', GOSUMDB='off', GO111MODULE='off')
         with open(name, 'w', encoding='utf-8') as source:
             source.write(payload['code'])
         # Compiler messages go to the host's bounded stderr, never candidate stdout.
         compiled = subprocess.run(compile_cmd, stdin=subprocess.DEVNULL,
-                                  stdout=sys.stderr, stderr=sys.stderr, timeout=20)
+                                  stdout=sys.stderr, stderr=sys.stderr, timeout=payload['compileSeconds'])
         if compiled.returncode:
             return 87
         if payload.get('prepareOnly'):
@@ -51,7 +54,12 @@ def main():
             data.write(base64.b64decode(payload['input']))
             data.seek(0)
             result = subprocess.run(run_cmd, stdin=data, timeout=payload['runSeconds'])
-        return result.returncode if result.returncode >= 0 else 128 - result.returncode
+        # All child failures map to runtime failure, never launcher-reserved status.
+        # The raw child status is diagnostic only and cannot become a compile error.
+        if result.returncode:
+            print('Target exit status: ' + str(result.returncode), file=sys.stderr)
+            return 1
+        return 0
 
 try:
     sys.exit(main())

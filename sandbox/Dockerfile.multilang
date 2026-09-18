@@ -1,4 +1,7 @@
-FROM debian:bookworm-slim
+ARG MULTILANG_IMAGE=debian:bookworm-slim
+FROM ${MULTILANG_IMAGE}
+ARG MULTILANG_IMAGE
+LABEL org.falsify.base-image=${MULTILANG_IMAGE}
 RUN apt-get update && apt-get install -y --no-install-recommends python3 gcc g++ nodejs node-typescript default-jdk-headless golang-go rustc ruby php-cli mono-mcs \
     && rm -rf /var/lib/apt/lists/* \
     && ln -s /usr/bin/python3 /usr/local/bin/python

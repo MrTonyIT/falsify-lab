@@ -1,4 +1,4 @@
-import { assert, validateConfig, sha256 } from "./domain.js";
+import { assert, validateConfig, sha256, LIMITS } from "./domain.js";
 import { Budget } from "./budget.js";
 import { digest, protocolBinding } from "./protocol.js";
 import { resolve } from "node:path";
@@ -85,20 +85,26 @@ export class HttpLLM {
       throw new Error(
         `Provider HTTP ${r.status}; no automatic retries or parameter changes`,
       );
-    let data;
+    let data, rawResponse;
     if (r.body) {
       const chunks = [];
       let size = 0;
       for await (const chunk of r.body) {
         size += chunk.length;
         assert(
-          size <= 8 * 1024 * 1024,
+          size <= LIMITS.providerResponseBytes,
           "Provider response exceeds 8 MiB; billing must be reconciled",
         );
         chunks.push(chunk);
       }
-      data = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+      rawResponse = Buffer.concat(chunks).toString("utf8");
+      data = JSON.parse(rawResponse);
     } else data = await r.json(); // Injectable unit-test transports need not implement streams.
+    rawResponse ??= JSON.stringify(data);
+    assert(
+      Buffer.byteLength(rawResponse) <= LIMITS.providerResponseBytes,
+      "Provider response exceeds bound",
+    );
     const u = data.usage;
     assert(
       u &&
@@ -125,6 +131,7 @@ export class HttpLLM {
       providerModel: data.model ?? null,
       finishReason: data.choices?.[0]?.finish_reason ?? null,
       requestId: data.id ?? null,
+      rawResponse,
     };
   }
 }

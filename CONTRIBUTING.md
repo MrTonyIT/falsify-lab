@@ -33,5 +33,5 @@ CI's unit/API checks do not certify compiler isolation or model performance.
   on comparability. Report all skipped checks explicitly.
 - Do not add paid calls to automated CI. Do not silently retry provider calls.
 
-No open-source license has been selected for this private repository. Adding one
+No open-source license has been selected for this public repository. Adding one
 requires a deliberate project-owner decision.

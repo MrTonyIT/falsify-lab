@@ -1,7 +1,13 @@
+import { PROTOCOL as CURRENT_PROTOCOL } from "./protocol.js";
+import { verifyAnalysisPlan } from "./analysis-plan.js";
+import {
+  verifyPrerequisite,
+  verifyRuntimeValidation,
+} from "./prerequisites.js";
 import { readFile, writeFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { readJsonl } from "./logging.js";
-import { sha256, assert, Verdict } from "./domain.js";
+import { sha256, assert, Verdict, LIMITS } from "./domain.js";
 import { currentProtocol, protocolBinding, digest } from "./protocol.js";
 import { greedySetCover } from "./track2.js";
 
@@ -13,6 +19,9 @@ const files = [
   "track2.jsonl",
   "blackbox.jsonl",
   "baseline.json",
+  "responses.jsonl",
+  "analysis-plan.json",
+  "runtime-validation.json",
 ];
 async function hashes(directory) {
   const result = {};
@@ -59,7 +68,11 @@ export function validatePairs(metadata, attempts, finals) {
       "Final/attempt mismatch",
     );
     const budget =
-      f.method === "random50" ? 50 : f.method === "ai-one-shot" ? 1 : 3;
+      f.method === "random50"
+        ? Math.max(...LIMITS.baselineBudgets)
+        : f.method === "ai-one-shot"
+          ? 1
+          : LIMITS.attempts;
     assert(
       a.length <= budget &&
         a.every(
@@ -197,6 +210,23 @@ export async function inspectEvidence(directory) {
         "Held-out verdict summary mismatch",
       );
     }
+    assert(
+      digest(metadata.limits) === digest(LIMITS),
+      "Recorded resource limits mismatch",
+    );
+    if (metadata.kind === "baseline") {
+      const baseline = JSON.parse(
+        await readFile(join(directory, "baseline.json"), "utf8"),
+      );
+      const { sha, frozen_at, ...body } = baseline;
+      assert(
+        currentProtocol(baseline) &&
+          digest(body) === sha &&
+          sha === metadata.baseline_sha &&
+          baseline.corpus_id === metadata.corpus_id,
+        "Baseline artifact identity mismatch",
+      );
+    }
     if (metadata.kind !== "official")
       return {
         official: false,
@@ -206,6 +236,52 @@ export async function inspectEvidence(directory) {
             : "VERIFIED",
         metadata,
       };
+    verifyPrerequisite(metadata.preflight, metadata);
+    const runtime = JSON.parse(
+      await readFile(join(directory, "runtime-validation.json"), "utf8"),
+    );
+    assert(
+      verifyRuntimeValidation(runtime, metadata) ===
+        metadata.runtime_validation_id,
+      "Runtime validation identity mismatch",
+    );
+    const plan = JSON.parse(
+      await readFile(join(directory, "analysis-plan.json"), "utf8"),
+    );
+    assert(
+      verifyAnalysisPlan(plan, metadata) ===
+        metadata.preflight.analysis_plan_sha &&
+        Date.parse(plan.frozen_at) <= Date.parse(metadata.started_at),
+      "Analysis plan binding/time mismatch",
+    );
+    const responses = await readJsonl(join(directory, "responses.jsonl"));
+    assert(
+      responses.length === attempts.length,
+      "Private response evidence incomplete",
+    );
+    for (const a of attempts) {
+      const matches = responses.filter(
+        (r) =>
+          r.run_id === a.run_id &&
+          r.problem_id === a.problem_id &&
+          r.submission_id === a.submission_id &&
+          r.attempt === a.attempt,
+      );
+      assert(matches.length === 1, "Response identity missing/duplicated");
+      const r = matches[0];
+      assert(
+        currentProtocol(r) &&
+          r.config_id === metadata.config_id &&
+          r.provider_model === a.provider_model &&
+          r.tokens_in === a.tokens_in &&
+          r.tokens_out === a.tokens_out &&
+          r.cost_usd === a.cost_usd &&
+          /^sha256:[a-f0-9]{64}$/.test(r.raw_response_sha) &&
+          (r.raw_response === null ||
+            sha256(r.raw_response) === r.raw_response_sha),
+        "Response provenance mismatch",
+      );
+    }
     assert(
       metadata.preflight?.ok === true &&
         currentProtocol(metadata.preflight) &&
@@ -217,16 +293,22 @@ export async function inspectEvidence(directory) {
       metadata.source_clean === true &&
         /^[a-f0-9]{40}$/.test(metadata.git_commit) &&
         metadata.sandbox?.kind === "docker" &&
+        metadata.image_id === metadata.sandbox.imageId &&
         /^sha256:[a-f0-9]{64}$/.test(metadata.sandbox.imageId),
       "Revision or runtime identity missing",
     );
     assert(
-      finals.length === 450 &&
-        new Set(finals.map((f) => f.problem_id)).size === 30,
+      finals.length ===
+        CURRENT_PROTOCOL.population.problems *
+          CURRENT_PROTOCOL.population.devPerProblem &&
+        new Set(finals.map((f) => f.problem_id)).size ===
+          CURRENT_PROTOCOL.population.problems,
       "Official pair count mismatch",
     );
     assert(
-      metadata.expected_pairs?.length === 450 &&
+      metadata.expected_pairs?.length ===
+        CURRENT_PROTOCOL.population.problems *
+          CURRENT_PROTOCOL.population.devPerProblem &&
         metadata.expected_pairs.every(
           (p) =>
             finals.filter(
@@ -257,7 +339,8 @@ export async function inspectEvidence(directory) {
     );
     for (const id of new Set(finals.map((f) => f.problem_id))) {
       assert(
-        finals.filter((f) => f.problem_id === id).length === 15,
+        finals.filter((f) => f.problem_id === id).length ===
+          CURRENT_PROTOCOL.population.devPerProblem,
         "Official per-problem count mismatch",
       );
       const frozen = track2.filter(
@@ -283,8 +366,10 @@ export async function inspectEvidence(directory) {
         "Held-out suite binding mismatch",
       );
       assert(
-        held[0].results.length === 10 &&
-          new Set(held[0].results.map((r) => r.submission_id)).size === 10,
+        held[0].results.length ===
+          CURRENT_PROTOCOL.population.heldOutPerProblem &&
+          new Set(held[0].results.map((r) => r.submission_id)).size ===
+            CURRENT_PROTOCOL.population.heldOutPerProblem,
         "Held-out denominator mismatch",
       );
     }

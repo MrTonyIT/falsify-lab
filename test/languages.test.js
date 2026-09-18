@@ -232,6 +232,31 @@ test(
       multilang: true,
     });
     assert(bad.compileFailed);
+    for (const code of [86, 87, 88, 142]) {
+      const result = await sandbox.run(
+        `int main(void){return ${code};}`,
+        Buffer.alloc(0),
+        { language: "c", multilang: true },
+      );
+      assert.equal(result.exitCode, 1, `raw exit ${code}`);
+      assert(
+        result.crashed &&
+          !result.compileFailed &&
+          !result.timedOut &&
+          !result.mle,
+      );
+      const judge = new Evaluator({ run: async () => result });
+      const verdict = await judge.judge(
+        smokeProblem(),
+        { code: "fixture", language: "c" },
+        {
+          data: Buffer.from("1"),
+          expected: Buffer.from("1"),
+          oracle: { trusted: true, kind: "reviewed" },
+        },
+      );
+      assert.equal(verdict.verdict, "inconclusive");
+    }
     const timeout = await sandbox.run("while(true){}", Buffer.alloc(0), {
       language: "javascript",
       multilang: true,

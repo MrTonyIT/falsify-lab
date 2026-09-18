@@ -1,55 +1,130 @@
-# Official run procedure
+# Official run procedure (protocol 3.1, schema 4)
 
-**v3 gate:** use a clean committed harness. Legacy logs and event labels cannot
-establish official results. Completed baseline/pilot directories need valid seals,
-current protocol/corpus/configuration bindings, consistent pairs and real execution
-provenance. The CLI checks the actual pilot directory and the exact completed
-baseline file. Read [protocol v3](RESEARCH_PROTOCOL_V3.md) before interpretation.
+The repository supplies a harness, not official research measurements. A real
+study requires the operator's corpus, paid-provider authorization and actual
+review. Never populate evidence fields with fabricated approvals.
 
-Provider ledgers persist at `results/budgets/<config-hash>.json` (under the web
-service's result root for web calls). Reservations are written before requests.
-Transport failure, missing usage, process termination or excessive provider charge
-blocks subsequent requests until operator reconciliation. With all writers stopped,
-preserve the old ledger, reconcile the request against provider billing, then
-deliberately update recorded spend/pending state. A stale `.lock` may be removed
-only after confirming no writer remains. Never delete ledgers to evade a budget.
-Each configuration has a separate ledger; a provider account-wide cap is still
-mandatory. No paid call was made during this hardening task.
+## Freeze the environment and study
 
-The repository contains no official measurements. Development uses mocks and authored fixtures. An official run is a separate operator action requiring paid-provider credentials and a curated corpus. The harness does not bypass provider or Codeforces access restrictions.
+1. Commit the harness on the research branch and keep its worktree clean.
+2. Build both sandbox images from digest-pinned bases. Python accepts
+   --build-arg PYTHON_IMAGE=python@sha256:...; multilang accepts
+   --build-arg MULTILANG_IMAGE=debian@sha256:.... Mutable default tags are for
+   development only. Record the resulting image IDs. Package repositories can
+   change even with a pinned base: use the exact tested image, not an assumed
+   reproducible rebuild.
+3. Run the manual Docker runtime validation workflow after normal CI passes, or
+   run node scripts/runtime-validation.mjs on the exact local images. Preserve
+   runtime-validation.json and its TAP output. It records protocol/resource policy,
+   Git commit, both image IDs and base digests, Docker/runtime/compiler versions,
+   test counts, timestamp and a content hash. The gate rejects skips/failures and
+   mismatched revisions/images. A hash proves integrity, not trusted authorship;
+   the operator must verify the workflow provenance. A successful hosted workflow
+   does not validate a different locally rebuilt image.
+4. Curate the private corpus per CORPUS.md, including reviewed plugins, validators,
+   samples, independent reference sources and the frozen target partition. Official
+   RUNTIME_ERROR populations are rejected even with allowRuntimeError enabled.
+   Global duplicate identities/statements and reused sources require explicit
+   review. Near-statement token overlap is only a review trigger, never proof of
+   semantic equivalence. If triggered, the manifest's independenceReview must
+   contain current protocolBinding(), status reviewed, reviewer, reviewed_at,
+   rationale and binding=independenceBinding(problems). Review the actual findings
+   from independenceFindings(problems); never copy an approval from another corpus.
+5. Configure a concrete model snapshot, verified prices, conservative input-token
+   reservation, cost cap and provider account limit. No provider secrets belong in
+   JSON or Git. All commands must use the same corpus/configuration/cutoff options.
+6. Write your actual hypotheses and analysis choices to private/operator-plan.json.
+   Required fields: hypotheses (nonempty string array), primary_endpoint
+   all_pair_kill_at_3, secondary_endpoints, denominator_policy all-assigned-pairs,
+   bootstrap {method: problem-cluster-percentile, repetitions: integer >=100,
+   seed: integer}, planned_comparisons, multiplicity_interpretation, exclusions,
+   stopping_policy first-confirmed-kill-or-budget, attempt_budget 3, reviewer.
+   Freeze before execution with:
 
-1. Install Node >=22 and a Linux Docker daemon. Build the image with `docker build -t ai-falsifier-python:local sandbox`. Pin the base image digest for reproducibility (`--build-arg PYTHON_IMAGE=python@sha256:...`). Run the opt-in Docker tests and save the tested image ID; official evidence must match the image returned by `docker image inspect`. No host fallback exists.
-2. Curate the corpus following CORPUS.md. Run `audit`. Review validators, sample parsing, exclusions and all 90 references. Commit the harness and record the Git revision. All downloaded sources remain private.
-3. Copy `config/example.json` to a private local configuration. Replace endpoint/model with a verified concrete snapshot. Set real prices per million tokens (the example zeros are placeholders), cost guard, and provider account usage limit. Prices and model identifiers in the source spec are unverified planning assumptions. Do not silently substitute another model.
-4. Export `FALSIFIER_API_KEY` in the operator's shell. Run `compatibility --config ... --out private/compatibility.json --execute-paid`. It tests high effort, 16000 completion tokens and a long prompt. It sends temperature only if configured. If rejected, deliberately update configuration and rerun; no silent fallback occurs. Compatibility is separately billable and its usage is recorded in its evidence file. Official analysis does not include compatibility costs.
-5. Freeze and run both random baselines before AI: `baseline --corpus ... --config ... --out results/random`. Save `baseline.json` and `evidence.json`. Both use the same manually authored generator with seeds 12345 through 12394; the 3-test baseline is the prefix. Execution stops at a kill. Do not tune generators after seeing AI results.
-6. Run `pilot --corpus ... --config ... --out results/pilot --execute-paid` (20 DEV pairs maximum). Manually inspect every attempt/log. Record the review in evidence. If the corpus has fewer than 20 pairs this cannot satisfy official prerequisites. Check billing against provider usage, particularly after any transport interruption.
-7. Assemble the evidence file described below. Run `preflight` with corpus/config/evidence/baseline paths. Missing, inconsistent or stale evidence fails safely. Re-run relevant checks after any code, corpus, plugin, provider or price change.
-8. Start `official ... --out results/official --execute-paid` only after preflight passes. Calls run serially by problem. Track 2 reuses generators, makes no LLM calls, logs matrix/selection before evaluating held-out submissions. No held-out source/outcome enters generation. Do not use held-out results to tune and rerun suites as if they were untouched held-out data.
-9. `report --out results/official --baseline-results results/random` joins canonical JSONL for comparisons. Include negative results, invalid/unusable/inconclusive rates, survivor labels and problem-level confidence intervals. Do not generalize 30 problems into 450 independent samples.
+       node src/cli.js freeze-plan --corpus private/corpus.json --config private/config.json --plan private/operator-plan.json --out private/frozen-plan.json
 
-Evidence structure (combine actual generated records, never fill with fabricated approvals):
+   This records content, timestamp, hash and exact protocol/Git/corpus/configuration.
+   It is a local analysis-plan freeze, not external preregistration. Official
+   reports use its bootstrap settings. The engine always retains all assigned
+   pairs; write exclusion and multiplicity choices consistent with that behavior.
+   Additional confirmatory analyses need a separately implemented and reviewed
+   workflow; a free-text plan does not execute arbitrary statistical methods.
 
-```json
-{
-  "protocol_version": "3.0.0",
-  "protocol_id": "current value returned by protocolBinding()",
-  "evidence_schema": 3,
-  "compatibility": {"config_id": "sha256:...", "model": "verified-snapshot", "nonempty": true, "longPrompt": true},
-  "quality": {"corpus_id": "sha256:...", "problems": ["actual audit records"]},
-  "baseline": {"sha": "sha256:...", "completed": true, "log_digest": "sha256:...", "directory": "results/random"},
-  "sandboxIntegration": {"imageId": "sha256:...", "passed": true},
-  "accountUsageLimitConfigured": true,
-  "pricing": {"verified": true, "config_id": "sha256:...", "source": "provider price evidence URL", "verified_at": "ISO timestamp"},
-  "pilot": {"pairs": 20, "manuallyReviewed": true, "corpus_id": "sha256:...", "logs": "results/pilot"},
-  "privacyReview": {"passed": true, "git_commit": "40-character Git revision"}
-}
-```
+## Collect actual prerequisites
 
-The gate verifies the baseline attempt-file digest, all 900 DEV/budget final records, target hashes, attempt counts and generator validity. Human review/account limits/pricing evidence remain explicit operator attestations, not claims the harness can independently prove.
+Use --corpus, --config and --runtime-validation private/runtime-validation.json
+for baseline, pilot and compatibility commands. Without runtime validation,
+development runs cannot qualify as official prerequisites.
 
-Contamination grouping is optional and defaults to `unverified`. Supply `--cutoff private/cutoff.json` with `{ "verified": true, "model": "exact-snapshot", "cutoff": "YYYY-MM-DD", "source": "verified model-card URL" }` only after verifying that snapshot. The CLI ignores unverified corpus labels, derives before/after groups from publication dates, and stores the evidence in run metadata. No date from the specification's speculative cutoff discussion is treated as fact.
+- Run audit and inspect every validator/sample/reference result.
+- Run compatibility --out private/compatibility.json --execute-paid with
+  FALSIFIER_API_KEY set. This is a separately billable long-prompt call. It records
+  the response snapshot, usage and a private sealed response in the adjacent
+  .private directory. Confirm real provider parameter/pricing support.
+- Run baseline --out results/random before tuning against AI results. Preserve
+  baseline.json, evidence.json and the entire sealed run. Both Random-3 and
+  Random-50 must complete all 450 DEV pairs and pass generator validity checks.
+- Run pilot --out results/pilot --execute-paid. At least twenty actual reviewed
+  DEV pairs are required. Manually inspect the logs and reconcile provider billing.
+- Assemble private/evidence.json using generated evidence. Its root must include
+  protocolBinding(). Supply quality (actual audit), baseline (actual generated
+  evidence), compatibility (actual call), pilot (metadata binding plus pairs,
+  manuallyReviewed and logs), privacyReview (binding plus passed), pricing
+  (verified, config_id, source, verified_at), accountUsageLimitConfigured.
+  Baseline/pilot/compatibility/privacy bindings each include exact protocol version,
+  ID, evidence schema, resource_policy_id, git_commit, corpus_id, config_id,
+  image_id and runtime_validation_id. The CLI also verifies the actual sealed
+  baseline and pilot metadata, not just the supplied attestations.
+- Run preflight with --evidence, --baseline results/random/baseline.json,
+  --runtime-validation and --analysis-plan private/frozen-plan.json in addition
+  to corpus/configuration. Missing/stale evidence fails closed.
+- Only then run official with the same options, --out results/official and
+  --execute-paid. The frozen plan is copied into sealed run evidence. Any change
+  to Git, protocol, corpus, configuration or tested image requires new applicable
+  prerequisites. There is no automatic paid retry or resume.
 
-The cost guard reserves a conservative configured `maxInputTokens` plus maximum completion-token cost before each serial call; the prompt must fit within that many UTF-8 bytes. Verify the provider's tokenizer and billing semantics during compatibility. Cached input billing is separate from response reuse, which is prohibited. A failed HTTP call may still be billed by the provider; reconcile usage before resuming. There is no automatic resume or retry that might silently duplicate calls. Existing run directories are never overwritten.
+## Evidence and reporting
 
-Sandbox cleanup uses explicit `docker rm --force` in `finally`, rather than `--rm`: this preserves `OOMKilled` state long enough to distinguish MLE from a correctness crash. Cleanup runs after every attempted execution, including timeout/errors. An ungraceful host termination may require operator removal of containers named `falsifier-*`. Wall timeout includes container startup; this is conservative and may increase inconclusive/unusable rates. RLIMIT_CPU is additionally enforced in Python. Docker is not a VM, and local mock success does not establish production isolation.
+responses.jsonl is private and sealed. Each bounded response has run/problem/
+submission/attempt identity, provider request/model, token usage, price-estimated
+cost, finish reason and protocol/config binding. retainRawResponses defaults to
+true; false retains a mandatory SHA-256 instead. Raw response content is never
+projected into browser APIs or reports. Protect private run-directory permissions
+and backups; mode 0600 applies on systems that support POSIX modes.
+
+Run report --out results/official --baseline-results results/random. Official
+status belongs to the primary run only, and each group retains its own evidence
+status. Incompatible protocol/corpus comparisons fail. An official baseline must
+match the exact frozen baseline identity. Generated scripts are redacted by
+default; --include-scripts is an explicit private-export option because scripts
+may reproduce source fragments. Review any artifact before publishing it.
+
+## Budget inspection and reconciliation
+
+Provider reservations persist before requests at results/budgets/<config-hash>.json.
+Uncertain billing is never auto-cleared. With writers stopped, use:
+
+    node src/cli.js budget --action status --config private/config.json
+    node src/cli.js budget --action settle --config private/config.json --reservation ID --actual-cost 0.012 --operator NAME --evidence VERIFIED_INVOICE_REFERENCE
+    node src/cli.js budget --action release --config private/config.json --reservation ID --operator NAME --evidence VERIFIED_ZERO_BILLING_REFERENCE --attest-no-billing
+
+Use --ledger-root for a different results root. Settlement records verified actual
+cost without double-counting an already recorded excessive charge. Release requires
+an explicit no-billing attestation and cannot erase known charged usage. Every
+reconciliation is recorded in the ledger. A stale .lock requires checking that no
+writer remains before operator removal. Never delete ledgers to evade limits.
+
+## Runtime and interpretation limits
+
+Each execution uses an isolated container, bounded memory/PIDs/files/output,
+two-CPU container quota and per-process CPU limits. Wall timing includes container
+startup and may be conservative. Multi-language compilation has a separate bounded
+allowance. Docker is not a VM. Compiler/runtime failures and ambiguous target
+crashes do not automatically become correctness kills. The actual Docker workflow
+must pass before claiming runtime validation.
+
+Optional --cutoff evidence defaults to unverified; only a verified snapshot/model
+card supports before/after grouping. Same-problem held-out results do not establish
+unseen-problem transfer. One-shot/no-feedback, unseen-problem partitioning and
+shrinking remain development APIs without complete experimental CLI/report flows.
+See RELATED_WORK.md for verified overlap with prior research.

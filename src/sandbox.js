@@ -17,14 +17,16 @@ export function dockerArgs(image, name, limits) {
     "--network=none",
     "--read-only",
     "--tmpfs",
-    "/tmp:rw,noexec,nosuid,nodev,size=64m",
+    `/tmp:rw,noexec,nosuid,nodev,size=${LIMITS.tmpfsMiB}m`,
     ...(limits.multilang
-      ? ["--tmpfs", "/work:rw,exec,nosuid,nodev,size=256m"]
+      ? ["--tmpfs", `/work:rw,exec,nosuid,nodev,size=${LIMITS.workMiB}m`]
       : []),
     "--user",
     "65534:65534",
     "--cap-drop=ALL",
     "--security-opt=no-new-privileges",
+    "--cpus",
+    String(LIMITS.cpus),
     "--pids-limit",
     String(LIMITS.pids),
     "--memory",
@@ -32,7 +34,7 @@ export function dockerArgs(image, name, limits) {
     "--memory-swap",
     String(limits.memoryBytes),
     "--env",
-    "PYTHONHASHSEED=12345",
+    `PYTHONHASHSEED=${LIMITS.seed}`,
     "--env",
     "PYTHONDONTWRITEBYTECODE=1",
     "--log-driver=none",
@@ -140,7 +142,7 @@ export class DockerSandbox {
       language === "python" || multilang,
       "Non-Python source requires a multi-language sandbox",
     );
-    const wallSeconds = seconds + (multilang ? 20 : 0);
+    const wallSeconds = seconds + (multilang ? LIMITS.compileSeconds : 0);
     const name = "falsifier-" + randomUUID();
     if (!this.imageId) await this.check();
     const args = dockerArgs(this.imageId, name, {
@@ -156,6 +158,12 @@ export class DockerSandbox {
       language,
       prepareOnly,
       runSeconds: seconds,
+      heapMiB: LIMITS.heapMiB,
+      codeCacheMiB: LIMITS.codeCacheMiB,
+      cpus: LIMITS.cpus,
+      cpuHardGraceSeconds: LIMITS.cpuHardGraceSeconds,
+      compileSeconds: LIMITS.compileSeconds,
+      openFiles: multilang ? LIMITS.multilangFiles : LIMITS.pythonFiles,
     });
     let timedOut = false,
       overflow = false,

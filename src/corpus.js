@@ -1,3 +1,6 @@
+import { PROTOCOL as CURRENT_PROTOCOL } from "./protocol.js";
+import { validateIndependence } from "./independence.js";
+import { SCIENTIFIC_LIMITS as SCI_LIMITS } from "./protocol.js";
 import { readFile, writeFile, mkdir, realpath } from "node:fs/promises";
 import { resolve, relative, isAbsolute, join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -9,7 +12,7 @@ import { checkerIdentity } from "./checkers.js";
 export function bucket(n) {
   return n <= 5 ? "sample..5" : n <= 15 ? "6..15" : "16+";
 }
-export function seededRandom(seed = 12345) {
+export function seededRandom(seed = SCI_LIMITS.seed) {
   let state = seed >>> 0;
   return () => {
     state = (Math.imul(1664525, state) + 1013904223) >>> 0;
@@ -18,7 +21,11 @@ export function seededRandom(seed = 12345) {
 }
 export function stratifiedSplit(
   candidates,
-  { seed = 12345, devCount = 15, heldOutCount = 10 } = {},
+  {
+    seed = SCI_LIMITS.seed,
+    devCount = CURRENT_PROTOCOL.population.devPerProblem,
+    heldOutCount = CURRENT_PROTOCOL.population.heldOutPerProblem,
+  } = {},
 ) {
   assert(
     candidates.length >= devCount + heldOutCount,
@@ -64,6 +71,7 @@ export function corpusIdentity(problems) {
   });
   return digest({
     ...protocolBinding(),
+    independenceReview: problems.independenceReview ?? null,
     problems: problems.map((p) => ({
       ...p,
       validator: sha256(String(p.validator)),
@@ -214,11 +222,15 @@ export async function loadCorpus(manifestPath, options = {}) {
     new Set(problems.map((p) => p.id)).size === problems.length,
     "Duplicate problem IDs",
   );
+  problems.independenceReview = manifest.independenceReview ?? null;
+  if (options.official) validateIndependence(problems);
   if (options.official)
     assert(
-      problems.length === 30 &&
+      problems.length === CURRENT_PROTOCOL.population.problems &&
         ["A", "B", "C"].every(
-          (d) => problems.filter((p) => p.division === d).length === 10,
+          (d) =>
+            problems.filter((p) => p.division === d).length ===
+            CURRENT_PROTOCOL.population.perDivision,
         ),
       "Official corpus requires 10 A / 10 B / 10 C",
     );

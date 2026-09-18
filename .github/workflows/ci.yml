@@ -10,26 +10,47 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  test-build:
+  core:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - run: npm audit --audit-level=high
+      - name: Explain runtime skips
+        run: echo 'Docker tests are opt-in; official evidence requires the separate Docker validation workflow.'
+  browser-build:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: "24"
           cache: npm
       - run: npm ci
-      - run: npm run check
-      - run: npm test
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - name: Browser and language checks (serial shared-server execution)
         run: |
           node server/index.js > /tmp/falsify-web.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" || true' EXIT
+          healthy=false
           for attempt in $(seq 1 30); do
-            if curl --fail --silent http://127.0.0.1:4173/api/health; then break; fi
+            if curl --fail --silent http://127.0.0.1:4173/api/health; then healthy=true; break; fi
             sleep 1
           done
+          if [ "$healthy" != true ]; then cat /tmp/falsify-web.log; exit 1; fi
           npm run test:e2e
           npm run test:languages

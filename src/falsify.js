@@ -1,3 +1,4 @@
+import { preserveResponse } from "./responses.js";
 import {
   devTarget,
   publicProblem,
@@ -19,7 +20,7 @@ export async function runPair({
   metadata,
   scripts = null,
   method = "ai",
-  budget = 3,
+  budget = LIMITS.attempts,
   knownWrong = true,
   feedback = true,
   onEvent = async () => {},
@@ -46,8 +47,9 @@ export async function runPair({
     );
   assert(
     scripts
-      ? budget === 3 || budget === 50
-      : budget === 3 || (method === "ai-one-shot" && budget === 1),
+      ? LIMITS.baselineBudgets.includes(budget)
+      : budget === LIMITS.attempts ||
+          (method === "ai-one-shot" && budget === 1),
     "AI budget 3 (one-shot 1); random budgets 3/50",
   );
   assert(
@@ -67,7 +69,7 @@ export async function runPair({
   );
   assert(
     metadata.kind !== "official" ||
-      (method === "ai" && feedback === true && budget === 3),
+      (method === "ai" && feedback === true && budget === LIMITS.attempts),
     "Ablations cannot silently alter the official protocol",
   );
   const history = [],
@@ -105,6 +107,13 @@ export async function runPair({
       });
       throw e;
     }
+    if (!scripts)
+      await preserveResponse(log, response, metadata, {
+        problem_id: problem.id,
+        submission_id: target.id,
+        attempt,
+        retainRaw: metadata.retain_raw_responses !== false,
+      });
     if (
       !scripts &&
       metadata.snapshot_pinned &&

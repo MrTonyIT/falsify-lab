@@ -15,8 +15,9 @@ export function freezeBaseline(problems) {
     );
     return {
       problem_id: p.id,
-      scripts: Array.from({ length: 50 }, (_, i) =>
-        p.randomGenerator(LIMITS.seed + i),
+      scripts: Array.from(
+        { length: Math.max(...LIMITS.baselineBudgets) },
+        (_, i) => p.randomGenerator(LIMITS.seed + i),
       ),
       plugin_hash: p.randomHash,
     };
@@ -27,7 +28,7 @@ export function freezeBaseline(problems) {
       "operator-authored structured random; not uniform over valid inputs",
     corpus_id: corpusIdentity(problems),
     seed: LIMITS.seed,
-    budgets: [3, 50],
+    budgets: LIMITS.baselineBudgets,
     generators,
   };
   return deepFreeze({
@@ -57,7 +58,7 @@ export async function runBaselines({
   verifyBaseline(frozen, problems);
   for (const p of problems)
     for (const target of p.dev)
-      for (const k of [3, 50])
+      for (const k of LIMITS.baselineBudgets)
         await runPair({
           problem: p,
           target,

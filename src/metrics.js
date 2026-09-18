@@ -1,3 +1,4 @@
+import { SCIENTIFIC_LIMITS as SCI_LIMITS } from "./protocol.js";
 import { assert } from "./domain.js";
 import { bucket, seededRandom } from "./corpus.js";
 const median = (values) => {
@@ -11,7 +12,9 @@ export function metrics(finals, attempts = []) {
   const eligible = finals.filter((r) => r.killed || !r.inconclusive),
     kills = finals.filter((r) => r.killed),
     first = eligible.filter((r) => r.kill_at_1).length;
-  const kills3 = kills.filter((r) => (r.attempts_used ?? 3) <= 3).length;
+  const kills3 = kills.filter(
+    (r) => (r.attempts_used ?? SCI_LIMITS.attempts) <= SCI_LIMITS.attempts,
+  ).length;
   const kill1 = percent(first, eligible.length),
     kill3 = percent(kills3, eligible.length);
   return {
@@ -63,7 +66,7 @@ export function metrics(finals, attempts = []) {
 }
 export function problemBootstrap(
   finals,
-  { seed = 12345, repetitions = 2000 } = {},
+  { seed = SCI_LIMITS.seed, repetitions = 2000 } = {},
 ) {
   assert(
     Number.isInteger(repetitions) && repetitions >= 1,
@@ -163,7 +166,7 @@ export function analyze(finals, attempts, options = {}) {
 export function pairedProblemBootstrap(
   left,
   right,
-  { seed = 12345, repetitions = 2000 } = {},
+  { seed = SCI_LIMITS.seed, repetitions = 2000 } = {},
 ) {
   assert(
     Number.isInteger(repetitions) && repetitions > 0,

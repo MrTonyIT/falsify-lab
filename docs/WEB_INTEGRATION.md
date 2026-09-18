@@ -38,22 +38,22 @@ $env:FALSIFIER_CORPUS='D:\project 1\private\corpus.json'
 npm start
 ```
 
-Configure the model using `config/example.json` as the schema, with real endpoint/model/prices. The existing `HttpLLM` adapter and budget guard make live calls; all Python uses the existing `DockerSandbox`. Custom validators read stdin and accept by exiting 0, reject by exiting nonzero. Validator/reference sources are retained only in the server job closure and never enter prompts or API read responses. Supplied references are user-provided oracles, not automatically certified ACCEPTED submissions.
+Configure the model using `config/example.json` as the schema, with real endpoint/model/prices. The existing `HttpLLM` adapter and budget guard make live calls; all Python uses the existing `DockerSandbox`. Pasted validator/reference fields are disabled: they cannot authorize execution. Custom live problems require the reviewed private corpus CLI workflow; uploaded code never becomes a trusted host plugin. Private raw provider responses are sealed locally and never included in browser API projections.
 
 ## Endpoints and persistence
 
-| Endpoint | Purpose |
-|---|---|
-| GET /api/health | API liveness |
-| GET /api/system/status | Actual Docker/model/corpus/storage state |
-| GET /api/examples | The two explicitly authored demonstration examples |
-| GET /api/problems | Public statement/constraints and DEV targets only |
-| POST /api/falsify | Validate input, create job, call the existing engine |
-| GET /api/runs | Stored web run summaries |
-| GET /api/runs/:id | Per-attempt evidence and event trace |
-| GET /api/runs/:id/events | SSE with replay and Last-Event-ID support |
-| GET /api/metrics or /api/benchmarks | Existing JSONL analysis, separated by run/kind |
-| GET /api/test-suites | Existing matrix, frozen selection and held-out records |
+| Endpoint                            | Purpose                                                |
+| ----------------------------------- | ------------------------------------------------------ |
+| GET /api/health                     | API liveness                                           |
+| GET /api/system/status              | Actual Docker/model/corpus/storage state               |
+| GET /api/examples                   | The two explicitly authored demonstration examples     |
+| GET /api/problems                   | Public statement/constraints and DEV targets only      |
+| POST /api/falsify                   | Validate input, create job, call the existing engine   |
+| GET /api/runs                       | Stored web run summaries                               |
+| GET /api/runs/:id                   | Per-attempt evidence and event trace                   |
+| GET /api/runs/:id/events            | SSE with replay and Last-Event-ID support              |
+| GET /api/metrics or /api/benchmarks | Existing JSONL analysis, separated by run/kind         |
+| GET /api/test-suites                | Existing matrix, frozen selection and held-out records |
 
 Each web run writes existing `attempts.jsonl`, `finals.jsonl` and `events.jsonl`, plus `stream.jsonl` for UI events and an atomic `web.json` snapshot for history. Generated candidate/output previews are capped at 65,536 characters; truncated inputs cannot be copied as if complete. Generator scripts remain copyable. Run failures do not trigger silent provider retries. Server restart marks interrupted jobs as failed. Live playground and interactive DEV runs do not become official benchmark evidence; the official CLI preflight remains required.
 

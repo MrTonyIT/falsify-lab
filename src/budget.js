@@ -64,6 +64,51 @@ export class Budget {
       }
     }
   }
+  reconcile({
+    reservation,
+    action,
+    actualCost,
+    operator,
+    evidence,
+    noBilling = false,
+  }) {
+    if (
+      !["settle", "release"].includes(action) ||
+      typeof operator !== "string" ||
+      !operator.trim() ||
+      typeof evidence !== "string" ||
+      !evidence.trim()
+    )
+      throw Error("Explicit operator and verified billing evidence required");
+    if (action === "release" && noBilling !== true)
+      throw Error("Explicit no-billing attestation required");
+    const cost = action === "release" ? 0 : actualCost;
+    if (!Number.isFinite(cost) || cost < 0)
+      throw Error("Verified actual cost required");
+    return this.transact((s) => {
+      if (!s.pending || s.pending.id !== reservation)
+        throw Error("Reservation mismatch");
+      const charged = s.pending.chargedCost ?? 0;
+      if (action === "release" && charged > 0)
+        throw Error("Already charged usage requires verified settlement");
+      if (s.spent - charged + cost < 0)
+        throw Error("Invalid reconciliation balance");
+      const record = {
+        reservation,
+        action,
+        actual_cost: cost,
+        previous_charge: charged,
+        operator,
+        evidence,
+        no_billing: noBilling,
+        timestamp: new Date().toISOString(),
+      };
+      s.spent = s.spent - charged + cost;
+      s.pending = null;
+      (s.reconciliations ??= []).push(record);
+      return record;
+    });
+  }
   reserve(upperBound) {
     return this.transact((s) => {
       if (s.pending)
@@ -96,6 +141,7 @@ export class Budget {
         ? {
             ...s.pending,
             upperBound: 0,
+            chargedCost: cost,
             reason:
               "Provider usage exceeded reservation; operator reconciliation required",
           }

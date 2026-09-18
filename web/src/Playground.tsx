@@ -316,41 +316,46 @@ export function Playground({
               </summary>
               <p>
                 {t(
-                  "Pasted code is unverified. Live custom problems require a reviewed corpus oracle with source-bound provenance; these fields alone cannot authorize a KILL or a paid run.",
+                  "Pasted code is unverified. Live custom problems require a reviewed corpus oracle with source-bound provenance; these disabled fields cannot authorize a KILL or a paid run. Use the reviewed private corpus CLI workflow.",
                 )}
               </p>
-              <label>
-                {t("Python validator")}{" "}
-                <small>
-                  {t(
-                    "Read input from stdin. Exit 0 for valid, nonzero for invalid.",
-                  )}
-                </small>
-                <textarea
-                  value={validator}
-                  onChange={(e) => setValidator(e.target.value)}
-                  placeholder={t(
-                    "import sys\\n# Validate every constraint\\n# sys.exit(1) for invalid input",
-                  )}
-                />
-              </label>
-              {references.map((value, i) => (
-                <label key={i}>
-                  {t("Reference solution ")}
-                  {i + 1}
+              <fieldset
+                disabled
+                aria-label="Pasted oracles cannot authorize execution"
+              >
+                <label>
+                  {t("Python validator")}{" "}
+                  <small>
+                    {t(
+                      "Read input from stdin. Exit 0 for valid, nonzero for invalid.",
+                    )}
+                  </small>
                   <textarea
-                    value={value}
-                    onChange={(e) =>
-                      setReferences((r) =>
-                        r.map((v, j) => (i === j ? e.target.value : v)),
-                      )
-                    }
+                    value={validator}
+                    onChange={(e) => setValidator(e.target.value)}
                     placeholder={t(
-                      "Paste an independent accepted Python solution…",
+                      "import sys\\n# Validate every constraint\\n# sys.exit(1) for invalid input",
                     )}
                   />
                 </label>
-              ))}
+                {references.map((value, i) => (
+                  <label key={i}>
+                    {t("Reference solution ")}
+                    {i + 1}
+                    <textarea
+                      value={value}
+                      onChange={(e) =>
+                        setReferences((r) =>
+                          r.map((v, j) => (i === j ? e.target.value : v)),
+                        )
+                      }
+                      placeholder={t(
+                        "Paste an independent accepted Python solution…",
+                      )}
+                    />
+                  </label>
+                ))}
+              </fieldset>
             </details>
           )}
         </div>

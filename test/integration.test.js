@@ -95,7 +95,11 @@ test("black-box generation sees neither target nor reference source and consumes
     k: 2,
     llm,
     evaluator,
-    log: { append: async (k, v) => records.push(v) },
+    log: {
+      append: async (k, v) => {
+        if (k === "blackbox") records.push(v);
+      },
+    },
     metadata: { run_id: "b" },
   });
   assert.equal(llm.prompts.length, 2);

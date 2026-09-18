@@ -1,3 +1,11 @@
+import { PROTOCOL as CURRENT_PROTOCOL } from "./protocol.js";
+import {
+  verifyRuntimeValidation,
+  prerequisiteBinding,
+  verifyPrerequisite,
+} from "./prerequisites.js";
+import { verifyAnalysisPlan } from "./analysis-plan.js";
+import { validateIndependence } from "./independence.js";
 import { protocolBinding, currentProtocol } from "./protocol.js";
 import { assert, validateConfig, validateProblem, sha256 } from "./domain.js";
 import { configIdentity } from "./llm.js";
@@ -12,6 +20,13 @@ export function officialPreflight({
   gitCommit,
 }) {
   const failures = [];
+  const binding = prerequisiteBinding({
+    git_commit: gitCommit,
+    corpus_id: corpusIdentity(problems),
+    config_id: configIdentity(config),
+    image_id: sandbox.imageId,
+    runtime_validation_id: evidence.runtimeValidation?.sha,
+  });
   const check = (name, fn) => {
     try {
       fn();
@@ -28,12 +43,15 @@ export function officialPreflight({
   check("configuration", () => validateConfig(config, true));
   check("corpus", () => {
     assert(
-      problems.length === 30 &&
+      problems.length === CURRENT_PROTOCOL.population.problems &&
         ["A", "B", "C"].every(
-          (d) => problems.filter((p) => p.division === d).length === 10,
+          (d) =>
+            problems.filter((p) => p.division === d).length ===
+            CURRENT_PROTOCOL.population.perDivision,
         ),
       "30 problems: 10 per division",
     );
+    validateIndependence(problems);
     problems.forEach((p) =>
       validateProblem(p, {
         official: true,
@@ -48,11 +66,16 @@ export function officialPreflight({
       "Verified Docker image ID required",
     );
     assert(
-      evidence.sandboxIntegration?.imageId === sandbox.imageId &&
-        evidence.sandboxIntegration?.passed === true,
+      verifyRuntimeValidation(evidence.runtimeValidation, binding) ===
+        binding.runtime_validation_id,
       "Sandbox integration evidence for current image required",
     );
   });
+  check("analysis-plan", () =>
+    verifyAnalysisPlan(evidence.analysisPlan, binding),
+  );
+  for (const key of ["baseline", "pilot", "compatibility", "privacyReview"])
+    check(key + "-binding", () => verifyPrerequisite(evidence[key], binding));
   check("compatibility", () => {
     assert(
       evidence.compatibility?.config_id === configIdentity(config),
@@ -71,7 +94,8 @@ export function officialPreflight({
       "Quality audit missing/stale",
     );
     assert(
-      evidence.quality?.problems?.length === 30,
+      evidence.quality?.problems?.length ===
+        CURRENT_PROTOCOL.population.problems,
       "Thirty problem audits required",
     );
     for (const p of problems) {
@@ -84,7 +108,9 @@ export function officialPreflight({
         "Validator/reference/sample audit incomplete",
       );
       assert(
-        q.accepted.length === 25 &&
+        q.accepted.length ===
+          CURRENT_PROTOCOL.population.devPerProblem +
+            CURRENT_PROTOCOL.population.heldOutPerProblem &&
           [...p.dev, ...p.heldOut].every((s) =>
             q.accepted.some(
               (a) =>
@@ -119,7 +145,7 @@ export function officialPreflight({
       "Pricing verification for current configuration required",
     );
     assert(
-      evidence.pilot?.pairs >= 20 &&
+      evidence.pilot?.pairs >= CURRENT_PROTOCOL.population.pilotMinimum &&
         evidence.pilot?.manuallyReviewed === true &&
         evidence.pilot?.corpus_id === corpusIdentity(problems) &&
         evidence.pilot?.logs,
@@ -138,7 +164,8 @@ export function officialPreflight({
     ),
   );
   return {
-    ...protocolBinding(),
+    ...binding,
+    analysis_plan_sha: evidence.analysisPlan?.sha,
     ok: failures.length === 0,
     failures,
     checked_at: new Date().toISOString(),

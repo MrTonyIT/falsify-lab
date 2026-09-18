@@ -15,10 +15,11 @@ import tempfile
 seconds = int(sys.argv[1])
 resource.setrlimit(resource.RLIMIT_CPU, (seconds, seconds))
 resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
-resource.setrlimit(resource.RLIMIT_NOFILE, (64, 64))
+
 # The host also enforces elapsed time and kills the whole container.
 signal.alarm(seconds)
 payload = json.load(sys.stdin)
+resource.setrlimit(resource.RLIMIT_NOFILE, (payload['openFiles'], payload['openFiles']))
 source = payload.pop('code')
 random.seed(payload['seed'])
 data = b'' if payload['role'] == 'generator' else base64.b64decode(payload['input'])

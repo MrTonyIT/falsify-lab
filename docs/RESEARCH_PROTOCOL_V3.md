@@ -1,21 +1,23 @@
-# Research protocol 3.0.0
+# Research protocol 3.1.0
 
 Status: **implemented harness; real experiments NOT RUN**. This document supersedes
-incompatible v2 behavior. `src/protocol.js` supplies the version, canonical protocol
+incompatible v2 and v3.0 evidence. `src/protocol.js` supplies the version, canonical protocol
 hash and evidence schema. Changing verdicts, eligibility, information access,
 checker semantics, selection or denominators requires a new binding and fresh
 evidence. Older files remain inspectable as LEGACY; they cannot establish official
 results under this protocol.
 
+Version 3.1 binds the entire resource policy (including a two-CPU container quota), uses evidence schema 4, and requires a separately frozen operator analysis plan. The questions below are design proposals, not an actual preregistration. See [operator procedure](OFFICIAL_RUN.md).
+
 ## Questions and falsifiable hypotheses
 
-| Question | Prespecified comparison | What would fail to support the hypothesis |
-|---|---|---|
-| Does adversarial generation improve detection? | Target-aware feedback AI versus frozen Random-3, on identical DEV pairs | Paired problem-level difference is zero/negative or uncertainty includes zero |
-| Does feedback itself help? | Feedback AI versus no-feedback AI, each at most 3 calls with identical model/configuration and target access | No positive paired difference; Kill@3 minus Kill@1 alone is NOT a feedback ablation |
-| Do tests transfer to other implementations? | DEV-selected frozen suite against 10 held-out submissions of each same problem | Little/zero held-out coverage; DEV coverage alone is insufficient |
-| Does target access help? | Statement-only generation versus target-aware generation with an explicitly matched per-problem total call allocation | No advantage under the matched allocation; the current K-call black-box suite and 15-target official workflow are NOT automatically budget matched |
-| Are counterexamples economical? | Validator semantic size, bytes, actual calls/tokens/executions/time and price-estimated cost | No consistent benefit across problems; smaller bytes do not imply smaller semantic cases |
+| Question                                       | Prespecified comparison                                                                                               | What would fail to support the hypothesis                                                                                                          |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Does adversarial generation improve detection? | Target-aware feedback AI versus frozen Random-3, on identical DEV pairs                                               | Paired problem-level difference is zero/negative or uncertainty includes zero                                                                      |
+| Does feedback itself help?                     | Feedback AI versus no-feedback AI, each at most 3 calls with identical model/configuration and target access          | No positive paired difference; Kill@3 minus Kill@1 alone is NOT a feedback ablation                                                                |
+| Do tests transfer to other implementations?    | DEV-selected frozen suite against 10 held-out submissions of each same problem                                        | Little/zero held-out coverage; DEV coverage alone is insufficient                                                                                  |
+| Does target access help?                       | Statement-only generation versus target-aware generation with an explicitly matched per-problem total call allocation | No advantage under the matched allocation; the current K-call black-box suite and 15-target official workflow are NOT automatically budget matched |
+| Are counterexamples economical?                | Validator semantic size, bytes, actual calls/tokens/executions/time and price-estimated cost                          | No consistent benefit across problems; smaller bytes do not imply smaller semantic cases                                                           |
 
 No conclusion is hard-coded. Confirmatory claims require a locked analysis plan,
 real corpus, reviewed evidence and actual measurements. Optional ablations and

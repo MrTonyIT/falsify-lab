@@ -70,6 +70,7 @@ export function metadataFor(problems, config, kind) {
     seed: LIMITS.seed,
     pricing: config.pricing,
     response_cache: false,
+    retain_raw_responses: config.retainRawResponses !== false,
     prompt_cache: "provider-managed; cached input tokens logged",
     limits: LIMITS,
     provider_endpoint: config.endpoint ?? null,
@@ -144,10 +145,12 @@ export async function baselineWorkflow({
   evaluator,
   directory,
   config,
+  binding = {},
 }) {
   const frozen = freezeBaseline(problems),
     metadata = {
       ...metadataFor(problems, config, "baseline"),
+      ...binding,
       baseline_sha: frozen.sha,
       sandbox: {
         kind: evaluator.sandbox?.kind ?? "unverified",
@@ -177,6 +180,7 @@ export async function baselineWorkflow({
     frozen,
     quality,
     baseline: {
+      ...binding,
       sha: frozen.sha,
       completed: true,
       log_digest: digest,

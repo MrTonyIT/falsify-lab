@@ -1,3 +1,4 @@
+import { preserveReplay } from "./replay.js";
 import {
   mkdir,
   stat,
@@ -178,6 +179,11 @@ export class LabService {
         effort: "high",
         maxAttempts: LIMITS.attempts,
         message: this.configError,
+        destination: this.config?.endpoint
+          ? new URL(this.config.endpoint).origin
+          : null,
+        transmission:
+          "Live generation sends your target code and public problem to the configured provider. Replay makes no provider calls.",
       },
       corpus: {
         count: this.problems.length,
@@ -204,6 +210,9 @@ export class LabService {
       statement: p.statement,
       constraints: p.constraints,
       division: p.division,
+      oracle_status: assessOracle(p).kind,
+      live_eligible:
+        assessOracle(p).trusted && assessOracle(p).kind === "reviewed",
       dev: p.dev.map((s) => ({ id: s.id, code: s.code })),
     }));
   }
@@ -370,7 +379,7 @@ export class LabService {
           throw new ApiError(
             422,
             "ORACLE_REQUIRED",
-            "A custom problem needs a Python input validator and three distinct reference solutions. Expand Verification setup to add them.",
+            "Select a reviewed corpus problem. Pasted validators and references cannot authorize live execution.",
           );
         problem = {
           ...smokeProblem(),
@@ -446,6 +455,8 @@ export class LabService {
     const id = "lab-" + randomUUID().slice(0, 12);
     const job = {
       id,
+      problemId: problem.id,
+      sourceHash: sha256(target.code),
       title:
         example?.name ??
         (payload.mode === "benchmark"
@@ -623,8 +634,26 @@ export class LabService {
         knownWrong: job.knownWrong,
         onEvent: observer,
         onEvaluation: async (evaluation, record) => {
+          await preserveReplay(
+            log,
+            problem,
+            target,
+            evaluation,
+            record,
+            job.mode === "demo"
+              ? null
+              : job.language === "python"
+                ? this.sandbox
+                : this.multilang,
+          );
           const view = {
             ...record,
+            runtime_image_id:
+              job.mode === "demo"
+                ? null
+                : job.language === "python"
+                  ? this.sandbox.imageId
+                  : this.multilang.imageId,
             input: text(evaluation.data),
             expected: text(evaluation.expected),
             actual: text(evaluation.got),

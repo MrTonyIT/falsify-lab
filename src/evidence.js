@@ -10,6 +10,7 @@ import { readJsonl } from "./logging.js";
 import { sha256, assert, Verdict, LIMITS } from "./domain.js";
 import { currentProtocol, protocolBinding, digest } from "./protocol.js";
 import { greedySetCover } from "./track2.js";
+import { responseHashes, verifyResponseReference } from "./response-storage.js";
 
 const files = [
   "run.json",
@@ -37,7 +38,18 @@ async function hashes(directory) {
       result[file] = null;
     }
   }
-  return result;
+  // Omit new optional artifacts when absent so existing seals remain verifiable.
+  try {
+    const path = join(directory, "replay.jsonl");
+    assert(
+      (await stat(path)).size <= 128 * 1024 * 1024,
+      "Replay artifact too large",
+    );
+    result["replay.jsonl"] = sha256(await readFile(path));
+  } catch (e) {
+    if (e.code !== "ENOENT") throw e;
+  }
+  return { ...result, ...(await responseHashes(directory)) };
 }
 export async function sealEvidence(directory) {
   const content = { ...protocolBinding(), files: await hashes(directory) };
@@ -161,6 +173,8 @@ export async function inspectEvidence(directory) {
       "Run not uniquely completed",
     );
     validatePairs(metadata, attempts, finals);
+    for (const response of await readJsonl(join(directory, "responses.jsonl")))
+      verifyResponseReference(response, seal.files);
     // The same integrity rules apply to development suites shown in the UI.
     for (const frozen of track2.filter((t) => t.suite)) {
       const s = frozen.suite,

@@ -64,6 +64,7 @@ function App() {
     [offline, setOffline] = useState(false),
     [examples, setExamples] = useState<any[]>([]),
     [problems, setProblems] = useState<any[]>([]);
+  const [candidates, setCandidates] = useState<any[]>([]);
   const [statement, setStatement] = useState(""),
     [constraints, setConstraints] = useState(""),
     [code, setCode] = useState(""),
@@ -122,6 +123,8 @@ function App() {
     setConstraints(example.constraints);
     setCode(example.code);
     setOracle("example");
+    setProblemId("");
+    setSubmissionId("");
     setError("");
   }
   useEffect(() => {
@@ -132,6 +135,9 @@ function App() {
         if (e[0]) loadExample(e[0]);
       })
       .catch(() => setOffline(true));
+    api("/candidates")
+      .then(setCandidates)
+      .catch(() => {});
     api("/problems")
       .then(setProblems)
       .catch(() => {});
@@ -486,6 +492,7 @@ function App() {
                     setProblemId={setProblemId}
                     submissionId={submissionId}
                     setSubmissionId={setSubmissionId}
+                    candidates={candidates}
                     problems={problems}
                     job={job}
                     setJob={setJob}

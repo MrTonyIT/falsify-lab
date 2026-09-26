@@ -2,7 +2,7 @@ import { digest } from "../src/protocol.js";
 import { Verdict } from "../src/domain.js";
 
 const jobKeys =
-  "id title mode language model status createdAt attempts events currentAttempt knownWrong elapsed_ms final error diagnostics".split(
+  "id problemId sourceHash title mode language model status createdAt attempts events currentAttempt knownWrong elapsed_ms final error diagnostics".split(
     " ",
   );
 const finalKeys =
@@ -10,7 +10,7 @@ const finalKeys =
     " ",
   );
 const attemptKeys =
-  "protocol_version protocol_id evidence_schema corpus_id config_id oracle_kind execution_kind provider_kind run_id git_commit problem_id submission_id target_language sub_hash passed_test_count attempt model reasoning_effort generator_script verdict detail input_size semantic_size input_sha seed tokens_in tokens_out cached_tokens cost_usd latency_ms provider_model finish_reason method division origin contamination_group input expected actual input_truncated outputs_truncated sandbox_executions model_calls wall_ms".split(
+  "protocol_version protocol_id evidence_schema corpus_id config_id oracle_kind execution_kind provider_kind run_id git_commit problem_id submission_id target_language runtime_image_id sub_hash passed_test_count attempt model reasoning_effort generator_script verdict detail input_size semantic_size input_sha seed tokens_in tokens_out cached_tokens cost_usd latency_ms provider_model finish_reason method division origin contamination_group input expected actual input_truncated outputs_truncated sandbox_executions model_calls wall_ms".split(
     " ",
   );
 const eventKeys =

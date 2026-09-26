@@ -53,6 +53,26 @@ export function freezeAnalysisPlan(content, binding) {
     "Planned comparisons required",
   );
   assert(
+    plan.planned_comparisons.every((s) => ["random3", "random50"].includes(s)),
+    "Only descriptive random3/random50 comparisons are currently executable",
+  );
+  assert(
+    plan.secondary_endpoints.every((s) =>
+      [
+        "eligible_pair_kill_at_3",
+        "all_pair_kill_at_1",
+        "invalid_rate",
+        "inconclusive_rate",
+        "cost_per_kill",
+      ].includes(s),
+    ),
+    "Unsupported secondary endpoint",
+  );
+  assert(
+    plan.exclusions === "None",
+    "This protocol retains all assigned pairs; exclusions must be None",
+  );
+  assert(
     [
       "multiplicity_interpretation",
       "exclusions",
@@ -66,7 +86,12 @@ export function freezeAnalysisPlan(content, binding) {
       plan.stopping_policy === "first-confirmed-kill-or-budget",
     "Stopping policy must match protocol",
   );
-  const frozen = { ...plan, frozen_at: new Date().toISOString() };
+  const frozen = {
+    ...plan,
+    execution_scope:
+      "descriptive-only; no multiplicity adjustment or confirmatory hypothesis test",
+    frozen_at: new Date().toISOString(),
+  };
   return deepFreeze({ ...frozen, sha: digest(frozen) });
 }
 export function verifyAnalysisPlan(plan, binding) {

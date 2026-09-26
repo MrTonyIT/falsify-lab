@@ -3235,3 +3235,40 @@ tbody tr:last-child td {
     scroll-behavior: auto !important;
   }
 }
+
+.replay-panel {
+  margin: 18px 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow-wrap: anywhere;
+}
+.replay-panel p {
+  font-size: 12px;
+  line-height: 1.7;
+  margin: 10px 0;
+}
+.replay-panel code,
+.replay-panel pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  direction: ltr;
+}
+.replay-panel textarea {
+  display: block;
+  width: 100%;
+  min-height: 150px;
+  margin: 12px 0;
+  background: var(--bg);
+  color: inherit;
+  font-family: monospace;
+  direction: ltr;
+}
+.replay-panel summary {
+  cursor: pointer;
+  margin: 12px 0;
+}
+.config-selects p {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}

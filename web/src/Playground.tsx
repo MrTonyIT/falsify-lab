@@ -57,6 +57,7 @@ export function Playground({
   submissionId,
   setSubmissionId,
   problems,
+  candidates = [],
   job,
   setJob,
   busy,
@@ -395,6 +396,68 @@ export function Playground({
                     </button>
                   ))}
                 </div>
+                {mode === "playground" && (
+                  <div className="config-selects">
+                    <label>
+                      {t("Supported reviewed problem")}
+                      <select
+                        aria-label={t("Supported reviewed problem")}
+                        value={problemId}
+                        onChange={(e) => {
+                          const p = problems.find(
+                            (p) => p.id === e.target.value,
+                          );
+                          setProblemId(p?.id ?? "");
+                          setSubmissionId("");
+                          if (p) {
+                            setStatement(p.statement);
+                            setConstraints(p.constraints);
+                            setOracle("corpus");
+                          }
+                        }}
+                      >
+                        <option value="">
+                          {t(
+                            "Choose a reviewed problem or use the synthetic example",
+                          )}
+                        </option>
+                        {problems
+                          .filter((p) => p.live_eligible)
+                          .map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.id}
+                            </option>
+                          ))}
+                      </select>
+                    </label>
+                    {!problems.some((p) => p.live_eligible) && (
+                      <p>
+                        {t(
+                          "No independently reviewed learner problems are configured yet.",
+                        )}
+                      </p>
+                    )}
+                    {candidates.length > 0 && (
+                      <details>
+                        <summary>
+                          {t("Draft catalog — pending human review")}
+                        </summary>
+                        <p>
+                          {t(
+                            "AI-authored synthetic drafts. Not live-enabled or independently verified.",
+                          )}
+                        </p>
+                        <ul>
+                          {candidates.map((p) => (
+                            <li key={p.id}>
+                              {t(p.title)} — {t("Pending review")}
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+                  </div>
+                )}
                 {mode === "benchmark" && (
                   <div className="config-selects">
                     <label>
@@ -490,7 +553,7 @@ export function Playground({
                     <strong>
                       {mode === "demo"
                         ? t("Try the complete flow, safely.")
-                        : t("Isolated execution. Verified results.")}
+                        : t("Live execution requires reviewed evidence.")}
                     </strong>
                     <p>
                       {mode === "demo"
@@ -503,6 +566,43 @@ export function Playground({
                     </p>
                   </div>
                 </div>
+                {mode !== "demo" && (
+                  <div className="mode-notice">
+                    <div>
+                      <p>
+                        {t(
+                          "Live generation sends your code and public problem to the configured provider.",
+                        )}
+                      </p>
+                      <p>
+                        {t("Provider destination")}:{" "}
+                        {status?.provider?.destination ?? t("Not configured")}
+                      </p>
+                      <p>
+                        {t("Budget remaining")}:{" "}
+                        {status?.budget
+                          ? "USD " +
+                            Math.max(
+                              0,
+                              status.budget.limit -
+                                status.budget.spent -
+                                status.budget.reserved,
+                            ).toFixed(4)
+                          : t("Not configured")}
+                      </p>
+                      <p>
+                        {t(
+                          "Configured is not validated. Runtime availability does not certify isolation or model quality.",
+                        )}
+                      </p>
+                      <p>
+                        {t(
+                          "Raw responses may be retained privately on this server. Do not submit confidential code without permission.",
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                )}
                 {mode !== "demo" && (
                   <label className="paid-toggle">
                     <input

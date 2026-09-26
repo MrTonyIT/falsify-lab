@@ -15,6 +15,7 @@
     "dev": "vite web --config web/vite.config.ts",
     "test:e2e": "node scripts/web-smoke.mjs",
     "test:languages": "node scripts/web-languages.mjs",
+    "test:learner": "node scripts/web-learner.mjs",
     "check": "node scripts/check.mjs"
   },
   "dependencies": {

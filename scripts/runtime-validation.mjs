@@ -61,6 +61,7 @@ const run = spawnSync(
     "--test-timeout=300000",
     "test/docker.test.js",
     "test/languages.test.js",
+    "test/candidate-docker.test.js",
   ],
   {
     encoding: "utf8",

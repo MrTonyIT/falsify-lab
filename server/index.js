@@ -1,3 +1,5 @@
+import { candidateList } from "../fixtures/learner-candidates.js";
+import { exportEvidence, replayRevision } from "./replay.js";
 import { createServer } from "node:http";
 import { readFile, stat, realpath } from "node:fs/promises";
 import { resolve, join, extname, relative } from "node:path";
@@ -77,6 +79,8 @@ export async function createLabServer(options = {}) {
           return json(await service.status());
         if (req.method === "GET" && url.pathname === "/api/examples")
           return json(examples);
+        if (req.method === "GET" && url.pathname === "/api/candidates")
+          return json(candidateList());
         if (req.method === "GET" && url.pathname === "/api/problems")
           return json(service.problemList());
         if (req.method === "POST" && url.pathname === "/api/falsify") {
@@ -97,6 +101,27 @@ export async function createLabServer(options = {}) {
           )
         )
           return json(await service.data());
+        const evidenceRoute = url.pathname.match(
+          /^\/api\/runs\/(lab-[a-f0-9-]{12})\/attempts\/([1-3])\/(evidence|replay)$/,
+        );
+        if (evidenceRoute) {
+          const [, id, number, action] = evidenceRoute;
+          if (req.method === "GET" && action === "evidence")
+            return json(await exportEvidence(service, id, Number(number)));
+          if (req.method === "POST" && action === "replay") {
+            if (!req.headers["content-type"]?.startsWith("application/json"))
+              throw new ApiError(415, "JSON_REQUIRED", "Use application/json.");
+            return json(
+              await replayRevision(
+                service,
+                id,
+                Number(number),
+                await body(req),
+                examples,
+              ),
+            );
+          }
+        }
         const run = url.pathname.match(
           /^\/api\/runs\/(lab-[a-f0-9-]+)(\/events)?$/,
         );
@@ -188,7 +213,23 @@ export async function createLabServer(options = {}) {
             error: {
               code: error.code ?? "INTERNAL_ERROR",
               message:
-                error instanceof ApiError
+                error instanceof ApiError ||
+                [
+                  "EVIDENCE_NOT_COMPLETE",
+                  "INVALID_ATTEMPT",
+                  "EVIDENCE_UNVERIFIED",
+                  "REPLAY_UNAVAILABLE",
+                  "INVALID_SOURCE",
+                  "RUN_ACTIVE",
+                  "PYTHON_REPLAY_ONLY",
+                  "REPLAY_UNUSABLE",
+                  "ORACLE_CHANGED",
+                  "DEMO_REVISION_ONLY",
+                  "SANDBOX_UNAVAILABLE",
+                  "ORACLE_RECHECK_FAILED",
+                  "COMPILE_FAILED",
+                  "REPLAY_RESOURCE_LIMIT",
+                ].includes(error.code)
                   ? error.message
                   : "The server could not complete this request. Check local configuration and storage.",
             },

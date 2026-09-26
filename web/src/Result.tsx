@@ -1,3 +1,4 @@
+import { ReplayPanel } from "./ReplayPanel";
 import React, { useState, useEffect, lazy, Suspense } from "react";
 import { motion } from "motion/react";
 import { t } from "./i18n";
@@ -6,7 +7,7 @@ import {
   Plus,
   Copy,
   Code2,
-  ShieldCheck,
+  CircleHelp,
   Timer,
   Coins,
   Zap,
@@ -27,7 +28,7 @@ export function Result({ job, selected, setSelected, notify, newRun }: any) {
     >
       <div className="result-heading">
         <div className={"result-symbol " + (killed ? "kill" : "survived")}>
-          {killed ? <Zap size={24} /> : <ShieldCheck size={24} />}
+          {killed ? <Zap size={24} /> : <CircleHelp size={24} />}
         </div>
         <div>
           <div className="eyebrow">
@@ -38,11 +39,15 @@ export function Result({ job, selected, setSelected, notify, newRun }: any) {
           <h2>
             {killed
               ? t("Counterexample found.")
-              : job.status === "finished"
-                ? t(
-                    "No counterexample found within the configured attempt budget.",
+              : ["inconclusive", "invalid", "gen_failed", "unusable"].includes(
+                    attempt.verdict,
                   )
-                : t("The search continues.")}
+                ? t("Not enough evidence to judge correctness.")
+                : job.status === "finished"
+                  ? t(
+                      "No counterexample found within the configured attempt budget.",
+                    )
+                  : t("The search continues.")}
           </h2>
         </div>
         <Badge value={attempt.verdict} />
@@ -73,12 +78,14 @@ export function Result({ job, selected, setSelected, notify, newRun }: any) {
         <CodePanel
           label={t("EXPECTED OUTPUT")}
           value={attempt.expected}
+          truncated={attempt.outputs_truncated}
           variant="expected"
           notify={notify}
         />
         <CodePanel
           label={t("YOUR CODE RETURNED")}
           value={attempt.actual}
+          truncated={attempt.outputs_truncated}
           variant={killed ? "different" : ""}
           notify={notify}
         />
@@ -115,6 +122,7 @@ export function Result({ job, selected, setSelected, notify, newRun }: any) {
           notify={notify}
         />
       </details>
+      <ReplayPanel job={job} attempt={attempt} />
       <div className="result-actions">
         <CopyButton
           value={attempt.input_truncated ? "" : attempt.input}

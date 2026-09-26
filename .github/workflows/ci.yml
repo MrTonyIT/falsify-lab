@@ -54,3 +54,4 @@ jobs:
           if [ "$healthy" != true ]; then cat /tmp/falsify-web.log; exit 1; fi
           npm run test:e2e
           npm run test:languages
+          npm run test:learner

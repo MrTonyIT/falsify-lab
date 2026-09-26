@@ -1,8 +1,26 @@
 # Project status and continuation notes
 
-Checkpoint: 2026-09-17. This document describes observed evidence, not a release certification.
+Current implementation checkpoint: 2026-09-26. See [PRODUCT_MVP.md](PRODUCT_MVP.md)
+and [LEARNER_GUIDE.md](LEARNER_GUIDE.md) for the controlled learner trial scope.
+Full-input export and no-model revision replay are implemented; the draft catalog
+has five synthetic pending exercises, no independently reviewed live catalog.
+Candidate review and user-trial packets are prepared, not completed external reviews.
+Provider experiments and user benefit remain NOT MEASURED. No public deployment.
 
-**Current v3 checkpoint:** use [HARDENING_REPORT.md](HARDENING_REPORT.md) for the
+Runtime verification is commit/image-specific: inspect the **Docker runtime
+validation** workflow for the exact Git SHA, its TAP log and runtime-validation.json;
+ordinary CI or an older successful image is not enough. Protocol 3.1.1 binds explicit
+ownership/mode of the compiled work mount, fixing a real hosted Docker permission
+failure. Old 3.1.0 records remain historical and cannot qualify as current evidence.
+Raw provider payloads now use individually bounded, privately sealed blobs; aggregate
+capacity and replay gates have regression coverage. See the final task handoff and
+exact-commit Actions records for test results rather than reusing historical totals.
+
+## Historical checkpoint: 2026-09-17
+
+The following is retained evidence, not the current release status.
+
+**Historical v3 checkpoint:** use [HARDENING_REPORT.md](HARDENING_REPORT.md) for the
 final verification record and [RESEARCH_PROTOCOL_V3.md](RESEARCH_PROTOCOL_V3.md)
 for current verdicts, denominators and evidence gates. The earlier 54-test record
 below is retained as historical context, not the current test total.

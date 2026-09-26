@@ -1,4 +1,4 @@
-# Official run procedure (protocol 3.1, schema 4)
+# Official run procedure (protocol 3.1.1, schema 4)
 
 The repository supplies a harness, not official research measurements. A real
 study requires the operator's corpus, paid-provider authorization and actual
@@ -46,11 +46,30 @@ review. Never populate evidence fields with fabricated approvals.
    This records content, timestamp, hash and exact protocol/Git/corpus/configuration.
    It is a local analysis-plan freeze, not external preregistration. Official
    reports use its bootstrap settings. The engine always retains all assigned
-   pairs; write exclusion and multiplicity choices consistent with that behavior.
+   pairs; exclusions must be the literal string `None`. Supported comparisons are
+   `random3` and `random50`; secondary endpoints are `eligible_pair_kill_at_3`,
+   `all_pair_kill_at_1`, `invalid_rate`, `inconclusive_rate`, `cost_per_kill`.
+   Other choices fail closed. The frozen `execution_scope` explicitly states
+   descriptive-only, no multiplicity adjustment or confirmatory hypothesis test.
    Additional confirmatory analyses need a separately implemented and reviewed
    workflow; a free-text plan does not execute arbitrary statistical methods.
 
 ## Collect actual prerequisites
+
+Duplicate review does not establish statistical independence. Current intervals
+resample problems, not semantic families; related problems may make them optimistic.
+Family definitions, family-level sensitivity and paired comparisons need an actual
+study-specific review before inferential publication. This is deferred from the
+learner MVP; no superiority or confirmatory claim is authorized by a frozen plan.
+
+Raw provider retention: new responses use `responses/<sha256>.txt` (maximum 8 MiB
+per response), with references in `responses.jsonl`. Seals stream-hash each blob;
+17 full-size responses exceeding 128 MiB combined are regression-tested without
+provider calls. Inline old responses remain readable under their historical seal.
+Other JSONL files retain their 128 MiB bound. No response deletion/retention reduction
+is introduced; filesystem capacity and operator retention remain external limits.
+Replay artifacts are private; downloads omit source and raw provider data but still
+contain input/output. Local content hashes detect changes, not malicious re-signing.
 
 Use --corpus, --config and --runtime-validation private/runtime-validation.json
 for baseline, pilot and compatibility commands. Without runtime validation,

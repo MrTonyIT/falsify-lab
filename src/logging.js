@@ -8,6 +8,7 @@ import {
 } from "node:fs/promises";
 import { join } from "node:path";
 import { assert, Verdict } from "./domain.js";
+import { storeResponse } from "./response-storage.js";
 export const ATTEMPT_FIELDS = [
   "run_id",
   "git_commit",
@@ -64,6 +65,7 @@ export class JsonlLog {
         "blackbox",
         "events",
         "responses",
+        "replay",
       ].includes(kind),
       "Unknown log kind",
     );
@@ -79,6 +81,8 @@ export class JsonlLog {
         "Unknown verdict",
       );
     await mkdir(this.directory, { recursive: true });
+    if (kind === "responses")
+      record = await storeResponse(this.directory, record);
     await appendFile(
       join(this.directory, kind + ".jsonl"),
       JSON.stringify(record) + "\n",

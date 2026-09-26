@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-export const PROTOCOL_VERSION = "3.1.0";
+export const PROTOCOL_VERSION = "3.1.1";
 export const EVIDENCE_SCHEMA = 4;
 const attemptBudget = 3;
 export const SCIENTIFIC_LIMITS = deepFreeze({
@@ -18,6 +18,9 @@ export const SCIENTIFIC_LIMITS = deepFreeze({
   cpus: 2,
   tmpfsMiB: 64,
   workMiB: 256,
+  workUid: 65534,
+  workGid: 65534,
+  workMode: "0700",
   pythonFiles: 64,
   multilangFiles: 128,
   heapMiB: 256,

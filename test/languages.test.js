@@ -75,7 +75,7 @@ test("compiled sandbox retains isolation and permits execution only in its bound
     "--cap-drop=ALL",
     "--security-opt=no-new-privileges",
     "/tmp:rw,noexec,nosuid,nodev,size=64m",
-    "/work:rw,exec,nosuid,nodev,size=256m",
+    "/work:rw,exec,nosuid,nodev,size=256m,uid=65534,gid=65534,mode=0700",
   ])
     assert(multi.includes(option));
 });

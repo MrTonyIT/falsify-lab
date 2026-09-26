@@ -19,7 +19,7 @@ export function dockerArgs(image, name, limits) {
     "--tmpfs",
     `/tmp:rw,noexec,nosuid,nodev,size=${LIMITS.tmpfsMiB}m`,
     ...(limits.multilang
-      ? ["--tmpfs", `/work:rw,exec,nosuid,nodev,size=${LIMITS.workMiB}m`]
+      ? ["--tmpfs", `/work:rw,exec,nosuid,nodev,size=${LIMITS.workMiB}m,uid=${LIMITS.workUid},gid=${LIMITS.workGid},mode=${LIMITS.workMode}`]
       : []),
     "--user",
     "65534:65534",

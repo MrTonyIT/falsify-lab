@@ -244,7 +244,7 @@ export class DockerSandbox {
         ([137, 142, 152].includes(state.ExitCode) && !state.OOMKilled);
       if (multilang && state.ExitCode === 88)
         throw new InfrastructureError(
-          "A required runtime is unavailable inside the sandbox",
+          "Sandbox launcher failed: " + Buffer.concat(stderr).toString('utf8').slice(0,2048),
         );
       const mle = state.OOMKilled || state.ExitCode === 86;
       return {

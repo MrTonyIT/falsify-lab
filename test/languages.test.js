@@ -220,6 +220,7 @@ test(
     });
     await sandbox.check();
     for (const [language, code] of Object.entries(echoSources)) {
+      console.log(`Validating real runtime: ${language}`);
       const r = await sandbox.run(code, Buffer.from("41\n"), {
         language,
         multilang: true,
